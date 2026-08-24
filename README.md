@@ -445,7 +445,7 @@ Clone the HyShield repository:
 
 ```bash
 cd ~
-git clone YOUR_GITHUB_REPOSITORY_URL HyShield
+git clone https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution.git
 ```
 
 Enter the project directory:
@@ -453,8 +453,6 @@ Enter the project directory:
 ```bash
 cd ~/HyShield
 ```
-
-> Replace `YOUR_GITHUB_REPOSITORY_URL` with the actual GitHub repository URL.
 
 ---
 
