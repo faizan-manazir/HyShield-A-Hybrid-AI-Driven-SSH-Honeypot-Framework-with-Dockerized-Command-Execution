@@ -151,12 +151,7 @@ HyShield/
         └── cowrie/
             ├── llm/
             │   └── llm.py
-            │
-            └── backend/
-                └── bridge.py
 ```
-
-> `bridge.py` is included only if it exists in the working prototype.
 
 ---
 
