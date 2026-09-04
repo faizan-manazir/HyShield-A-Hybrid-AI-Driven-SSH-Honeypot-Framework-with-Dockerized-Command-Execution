@@ -546,27 +546,6 @@ cp ~/HyShield/cowrie-modifications/src/cowrie/llm/llm.py \
 
 ---
 
-# 🔧 Apply `bridge.py` If Included
-
-If your repository contains:
-
-```text
-cowrie-modifications/src/cowrie/backend/bridge.py
-```
-
-copy it into Cowrie:
-
-```bash
-mkdir -p ~/cowrie/src/cowrie/backend
-```
-
-```bash
-cp ~/HyShield/cowrie-modifications/src/cowrie/backend/bridge.py \
-~/cowrie/src/cowrie/backend/bridge.py
-```
-
----
-
 # 🤖 AI Configuration
 
 HyShield can use an AI backend for response refinement.
