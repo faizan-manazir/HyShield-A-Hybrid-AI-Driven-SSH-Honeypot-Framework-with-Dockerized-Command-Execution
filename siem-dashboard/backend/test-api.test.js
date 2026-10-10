@@ -1,0 +1,83 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const express = require('express');
+const request = require('supertest');
+const path = require('path');
+const fs = require('fs');
+
+// We need to set up the DB before mounting routes
+const { migrate, closeDb } = require('./db/migrate');
+const IngestionService = require('./services/ingestion');
+const apiRoutes = require('./routes/api');
+
+const testDbPath = path.join(__dirname, 'test_api_hyshield.db');
+process.env.DB_PATH = testDbPath;
+const testLogPath = path.join(__dirname, 'test_data', 'api_test_cowrie.json');
+
+const app = express();
+app.use(express.json());
+app.use('/api', apiRoutes);
+
+test('API Regression Tests', async (t) => {
+    if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+    if (fs.existsSync(testLogPath)) fs.unlinkSync(testLogPath);
+    fs.writeFileSync(testLogPath, '');
+
+    await migrate();
+    const ingestor = new IngestionService(testLogPath);
+    await ingestor.init();
+
+    await t.test('1. Empty Database Responses', async () => {
+        let res = await request(app).get('/api/health');
+        assert.strictEqual(res.status, 200);
+        assert.deepStrictEqual(res.body, { status: 'ok' });
+
+        res = await request(app).get('/api/events');
+        assert.strictEqual(res.status, 200);
+        assert.deepStrictEqual(res.body, []);
+
+        res = await request(app).get('/api/alerts');
+        assert.strictEqual(res.status, 200);
+        assert.deepStrictEqual(res.body, []);
+
+        res = await request(app).get('/api/actors');
+        assert.strictEqual(res.status, 200);
+        assert.deepStrictEqual(res.body, []);
+        
+        res = await request(app).get('/api/overview/metrics');
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.metrics.totalEvents, 0);
+    });
+
+    await t.test('2. Populating Database with Test Events', async () => {
+        fs.appendFileSync(testLogPath, JSON.stringify({ eventid: 'cowrie.session.connect', session: 'sess-api-1', src_ip: '10.0.0.1', timestamp: new Date().toISOString() }) + '\n');
+        fs.appendFileSync(testLogPath, JSON.stringify({ eventid: 'cowrie.command.input', session: 'sess-api-1', src_ip: '10.0.0.1', timestamp: new Date().toISOString(), input: 'wget malware' }) + '\n');
+        
+        // Wait for ingestion
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        let res = await request(app).get('/api/events');
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.length, 2, 'Should return 2 events');
+
+        res = await request(app).get('/api/sessions');
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.length, 1, 'Should return 1 session');
+        
+        res = await request(app).get('/api/sessions/sess-api-1');
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.id, 'sess-api-1', 'Should fetch specific session');
+        assert.strictEqual(res.body.events.length, 2, 'Session should have 2 raw events embedded');
+    });
+
+    await t.test('3. API Error Handling does not leak DB details', async () => {
+        // We will simulate a SQL injection attempt or bad parameter if possible, 
+        // or just ensure basic 404/500 works.
+        const res = await request(app).get('/api/sessions/invalid-id');
+        assert.strictEqual(res.status, 404);
+        assert.deepStrictEqual(res.body, { error: 'Session not found' });
+    });
+
+    ingestor.closeFile();
+    await closeDb();
+});
