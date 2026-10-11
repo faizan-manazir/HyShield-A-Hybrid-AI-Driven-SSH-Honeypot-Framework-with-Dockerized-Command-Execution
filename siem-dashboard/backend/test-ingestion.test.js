@@ -603,6 +603,47 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         if (fs.existsSync(renameSuccessPath)) fs.unlinkSync(renameSuccessPath);
     });
 
+    await t.test('22. Rotated recovery closes the file descriptor when checkpoint verification fails', async () => {
+        const recoveryPath = path.join(testDataDir, 'recovery_checkpoint_error.json');
+        if (fs.existsSync(recoveryPath)) fs.unlinkSync(recoveryPath);
+        const payload = JSON.stringify({
+            eventid: 'cowrie.session.connect',
+            session: 's_checkpoint_error',
+            timestamp: new Date().toISOString()
+        });
+        fs.writeFileSync(recoveryPath, payload + '\n');
+
+        const testDb = await migrate();
+        const st = fs.statSync(recoveryPath);
+        await testDb.run('DELETE FROM checkpoints WHERE inode = ?', [st.ino.toString()]);
+        await testDb.run(`
+            INSERT INTO checkpoints (inode, file_path, last_offset, generation, completed)
+            VALUES (?, ?, 0, 91, 0)
+        `, [st.ino.toString(), recoveryPath]);
+
+        const originalGet = testDb.get;
+        testDb.get = async function(query, params) {
+            if (query.includes('SELECT last_offset FROM checkpoints')) {
+                throw new Error('Simulated checkpoint verification failure');
+            }
+            return originalGet.apply(this, arguments);
+        };
+
+        const recovery = createIngestor(recoveryPath);
+        recovery.db = testDb;
+        await recovery.recoverRotatedFiles();
+        testDb.get = originalGet;
+
+        assert.strictEqual(recovery.fd, null, 'Recovery must close the descriptor even when checkpoint verification throws');
+        const checkpoint = await testDb.get(
+            'SELECT * FROM checkpoints WHERE inode = ?',
+            [st.ino.toString()]
+        );
+        assert.strictEqual(checkpoint.completed, 0, 'Failed checkpoint verification must not mark recovery complete');
+
+        if (fs.existsSync(recoveryPath)) fs.unlinkSync(recoveryPath);
+    });
+
     // Cleanup
     if (ingestor && ingestor.watcher) ingestor.closeFile();
     await closeDb();
