@@ -5,8 +5,19 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
 
+type MitreTechnique = {
+  name: string;
+  count: number;
+  severity: string;
+};
+
+type MitreTactic = {
+  name: string;
+  techniques: MitreTechnique[];
+};
+
 export default function MitrePage() {
-  const [tactics, setTactics] = useState<any[]>([]);
+  const [tactics, setTactics] = useState<MitreTactic[]>([]);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/mitre`)
