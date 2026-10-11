@@ -58,11 +58,16 @@ function createAuth({ username, passwordHash, secret }) {
         return res.json({ access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, user: { username, role: 'admin' } });
     }
 
+    function verifyBearerToken(token) {
+        if (!configured) return null;
+        return verifyToken(token, secret);
+    }
+
     function requireAuth(req, res, next) {
         if (req.path === '/health' || (req.path === '/auth/login' && req.method === 'POST')) return next();
         if (!configured) return res.status(503).json({ error: 'Authentication is not configured' });
         const match = /^Bearer ([A-Za-z0-9._-]+)$/.exec(req.get('authorization') || '');
-        const payload = match ? verifyToken(match[1], secret) : null;
+        const payload = match ? verifyBearerToken(match[1]) : null;
         if (!payload) return res.status(401).json({ error: 'Authentication required' });
         req.auth = { username: payload.sub, role: payload.role };
         if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.auth.role !== 'admin') {
@@ -71,7 +76,7 @@ function createAuth({ username, passwordHash, secret }) {
         return next();
     }
 
-    return { login, requireAuth, configured };
+    return { login, requireAuth, verifyBearerToken, configured };
 }
 
 module.exports = { createAuth, verifyPassword, verifyToken, signToken, TOKEN_TTL_SECONDS };
