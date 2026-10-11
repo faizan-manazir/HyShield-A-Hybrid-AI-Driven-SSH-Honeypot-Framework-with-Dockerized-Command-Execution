@@ -388,6 +388,11 @@ class IngestionService {
                 let evt;
                 try {
                     evt = JSON.parse(line);
+                    // Cowrie records must be JSON objects. Valid JSON primitives such as
+                    // null must be quarantined as malformed, not abort the whole batch.
+                    if (!evt || typeof evt !== 'object' || Array.isArray(evt)) {
+                        throw new Error('Cowrie event must be a JSON object');
+                    }
                 } catch (e) {
                     this.metrics.errors++;
                     const malformedId = crypto.createHash('md5').update(`${this.logFilePath}|${this.inode}|${this.generation}|${startOffset}|${line}`).digest('hex');
