@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '@/lib/api';
 
 export function getEventCategory(eventId: string) {
     if (eventId.includes('login')) return { label: 'AUTH', color: 'bg-purple-500/20 text-purple-400 border-purple-500/20' };
@@ -12,7 +13,7 @@ export function getEventCategory(eventId: string) {
 
 export default function LiveActivity() {
   const [events, setEvents] = useState<any[]>([]);
-  useEffect(() => { fetch('http://localhost:5000/api/events').then(r => r.json()).then(setEvents).catch(console.error); }, []);
+  useEffect(() => { fetch(`${API_BASE_URL}/api/events`).then(r => r.json()).then(setEvents).catch(console.error); }, []);
 
   return (
     <div className="p-8">
