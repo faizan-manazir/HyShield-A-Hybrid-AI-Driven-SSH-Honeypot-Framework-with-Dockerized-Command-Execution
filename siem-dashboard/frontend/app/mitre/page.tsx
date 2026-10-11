@@ -3,12 +3,13 @@ import { useState, useEffect } from 'react';
 import { Target, Activity } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function MitrePage() {
   const [tactics, setTactics] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/mitre')
+    fetch(`${API_BASE_URL}/api/mitre`)
       .then(r => r.json())
       .then(setTactics)
       .catch(console.error);
