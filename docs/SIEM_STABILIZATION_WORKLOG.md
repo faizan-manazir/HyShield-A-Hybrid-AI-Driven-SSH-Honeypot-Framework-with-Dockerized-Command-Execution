@@ -309,3 +309,17 @@ Validation in GitHub Actions run [38141187206](https://github.com/faizan-manazir
 - Backend and frontend dependency-audit reporting jobs: **completed successfully**. Audit job success means the report was generated; it does not mean all frontend advisories are resolved.
 
 This is a targeted ingestion robustness fix, not proof that all rotation, restart, or production deployment scenarios are fully validated. Continue the reliability review before considering the system stabilized.
+
+
+## 19. Rotated-file recovery descriptor cleanup
+
+A second lifecycle review found that the rotated-file recovery path closed its file descriptor only on the normal path. If checkpoint verification threw after the file had been opened and processed, the outer catch logged the error but the descriptor could remain open.
+
+Recovery now closes the rotated-file descriptor in a `finally` block, including when checkpoint verification fails. A regression test simulates that verification failure and asserts that the descriptor is closed and the checkpoint is not incorrectly marked complete.
+
+Validation in GitHub Actions run [38141280256](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38141280256):
+- Backend: **47 tests passed, 0 failed**.
+- Frontend production build: **passed**.
+- Backend and frontend dependency-audit report jobs completed successfully; five high-severity frontend tooling advisories remain documented and unresolved.
+
+This improves one recovery cleanup path but does not establish that all file-rotation and restart scenarios are complete. Continue the reliability review before moving to broader security work.
