@@ -323,3 +323,17 @@ Validation in GitHub Actions run [38141280256](https://github.com/faizan-manazir
 - Backend and frontend dependency-audit report jobs completed successfully; five high-severity frontend tooling advisories remain documented and unresolved.
 
 This improves one recovery cleanup path but does not establish that all file-rotation and restart scenarios are complete. Continue the reliability review before moving to broader security work.
+
+
+## 20. Catch up when the Cowrie log appears after startup
+
+The missing-log retry path previously reattached `fs.watch` when the Cowrie log appeared, but did not immediately read the file. If the file had already been populated before the watcher was attached and no further writes occurred, those existing records could remain unprocessed until another event arrived.
+
+The retry callback now calls `processNewData()` after reattaching the watcher. The retry interval is stored as an instance property (default 5 seconds) so the behavior can be regression-tested quickly. A new test starts ingestion while the file is absent, creates a populated file, and verifies the record is ingested without any subsequent write.
+
+Validation in GitHub Actions run [38141399574](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38141399574):
+- Backend: **48 tests passed, 0 failed**.
+- Frontend production build: **passed**.
+- Both dependency-audit report jobs completed successfully; the five high-severity frontend tooling findings remain unresolved.
+
+This closes a concrete gap in late-start ingestion. Continue testing rotation, restart recovery, concurrent writes, and full UI-to-ingestion behavior before declaring the SIEM seamlessly stable.
