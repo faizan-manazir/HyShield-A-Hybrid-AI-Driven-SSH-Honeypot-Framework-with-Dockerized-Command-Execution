@@ -182,3 +182,25 @@ test('Download-then-execute chain requires download before execution', () => {
         e.reason.includes('Download → Execute sequence')
     ));
 });
+
+test('Suspicious SSH client matching is case-insensitive', () => {
+    const result = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.client.version', version: 'HYDRA' },
+        { eventid: 'cowrie.login.success', username: 'admin' }
+    ]);
+
+    assert.ok(result.explanations.some(e =>
+        e.reason.includes('Suspicious SSH client: HYDRA')
+    ));
+});
+
+test('Uppercase account-creation commands still produce the specific alert', () => {
+    const result = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'USERADD attacker' }
+    ]);
+
+    assert.ok(result.alerts.some(alert =>
+        alert.title === 'Backdoor Account Created'
+    ));
+});
