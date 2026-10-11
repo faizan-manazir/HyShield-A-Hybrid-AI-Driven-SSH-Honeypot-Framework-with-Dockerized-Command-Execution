@@ -60,11 +60,47 @@ app.use(express.json({ limit: '1mb', strict: true }));
 app.post('/api/auth/login', auth.login);
 app.use('/api', auth.requireAuth, apiRoutes);
 
-// WebSocket for live updates
+// WebSocket clients must authenticate with a short-lived bearer token as their
+// first message. Do not send live SIEM data or acknowledge the connection first.
+const WS_AUTH_TIMEOUT_MS = 5000;
 wss.on('connection', (ws) => {
-    console.log('Client connected for live updates');
-    ws.send(JSON.stringify({ type: 'connected', message: 'Connected to HyShield Live Stream' }));
-    ws.on('close', () => console.log('Client disconnected'));
+    let authenticated = false;
+    const authTimer = setTimeout(() => {
+        if (!authenticated && ws.readyState === ws.OPEN) {
+            ws.close(1008, 'Authentication required');
+        }
+    }, WS_AUTH_TIMEOUT_MS);
+
+    ws.on('message', (raw) => {
+        if (authenticated) return;
+        let message;
+        try {
+            message = JSON.parse(raw.toString());
+        } catch {
+            ws.close(1008, 'Authentication required');
+            return;
+        }
+
+        const token = message && message.type === 'auth' && typeof message.token === 'string'
+            ? message.token
+            : null;
+        const principal = token ? auth.verifyBearerToken(token) : null;
+        if (!principal) {
+            clearTimeout(authTimer);
+            ws.close(1008, 'Authentication required');
+            return;
+        }
+
+        authenticated = true;
+        clearTimeout(authTimer);
+        ws.send(JSON.stringify({ type: 'connected', message: 'Connected to HyShield Live Stream' }));
+        console.log('Authenticated client connected for live updates');
+    });
+
+    ws.on('close', () => {
+        clearTimeout(authTimer);
+        console.log('Client disconnected from live updates');
+    });
 });
 
 // Return generic client errors; keep diagnostic details in server logs only.
