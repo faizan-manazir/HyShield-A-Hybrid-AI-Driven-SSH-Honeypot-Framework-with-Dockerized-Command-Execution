@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { API_BASE_URL } from '@/lib/api';
 
 export function getEventCategory(eventId: string) {
     if (eventId.includes('login')) return { label: 'AUTH', color: 'bg-purple-500/20 text-purple-400 border-purple-500/20' };
@@ -28,7 +29,7 @@ function ExplorerContent() {
 
   useEffect(() => { 
     const fetchEvents = () => {
-      fetch('http://localhost:5000/api/events')
+      fetch(`${API_BASE_URL}/api/events`)
         .then(r => r.json())
         .then(setEvents)
         .catch(console.error); 
