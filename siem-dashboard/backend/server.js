@@ -4,6 +4,13 @@ const cors = require('cors');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const apiRoutes = require('./routes/api');
+const { createAuth } = require('./auth');
+
+const auth = createAuth({
+    username: process.env.SIEM_ADMIN_USERNAME,
+    passwordHash: process.env.SIEM_ADMIN_PASSWORD_HASH,
+    secret: process.env.SIEM_AUTH_SECRET
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -49,8 +56,9 @@ app.use(cors({
 // SIEM event payloads should be small; reject oversized JSON before route handling.
 app.use(express.json({ limit: '1mb', strict: true }));
 
-// Routes
-app.use('/api', apiRoutes);
+// Public health check and login; all other API routes require a valid short-lived bearer token.
+app.post('/api/auth/login', auth.login);
+app.use('/api', auth.requireAuth, apiRoutes);
 
 // WebSocket for live updates
 wss.on('connection', (ws) => {
@@ -111,4 +119,4 @@ if (require.main === module) {
     startServer();
 }
 
-module.exports = { app, server, startServer, isAllowedOrigin };
+module.exports = { app, server, startServer, isAllowedOrigin, auth };
