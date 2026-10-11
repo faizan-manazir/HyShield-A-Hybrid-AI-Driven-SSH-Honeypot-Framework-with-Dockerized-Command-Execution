@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const request = require('supertest');
 const crypto = require('node:crypto');
+const { WebSocket } = require('ws');
 
 const salt = '00112233445566778899aabbccddeeff';
 const hash = crypto.scryptSync('test-password-only', Buffer.from(salt, 'hex'), 32).toString('hex');
@@ -9,7 +10,7 @@ process.env.SIEM_ADMIN_USERNAME = 'test-admin';
 process.env.SIEM_ADMIN_PASSWORD_HASH = 'scrypt$' + salt + '$' + hash;
 process.env.SIEM_AUTH_SECRET = 'test-only-secret-that-is-at-least-32-bytes-long';
 
-const { app } = require('./server');
+const { app, server } = require('./server');
 const { migrate, closeDb } = require('./db/migrate');
 
 test('SIEM API authentication and request hardening', async (t) => {
@@ -74,5 +75,35 @@ test('SIEM API authentication and request hardening', async (t) => {
         const blocked = await request(app).get('/api/health').set('Origin', 'https://untrusted.example');
         assert.equal(blocked.status, 403);
         assert.deepEqual(blocked.body, { error: 'Origin not allowed' });
+    });
+
+    await t.test('WebSocket rejects clients that do not authenticate', async () => {
+        await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve));
+        const address = server.address();
+        const ws = new WebSocket('ws://127.0.0.1:' + address.port);
+        const close = await new Promise((resolve, reject) => {
+            ws.once('error', reject);
+            ws.once('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+        });
+        assert.equal(close.code, 1008);
+        assert.equal(close.reason, 'Authentication required');
+        await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    });
+
+    await t.test('WebSocket accepts a valid bearer token in the first message', async () => {
+        await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve));
+        const address = server.address();
+        const login = await request(app).post('/api/auth/login')
+            .send({ username: 'test-admin', password: 'test-password-only' });
+        assert.equal(login.status, 200);
+        const ws = new WebSocket('ws://127.0.0.1:' + address.port);
+        const connectedMessage = await new Promise((resolve, reject) => {
+            ws.once('error', reject);
+            ws.once('open', () => ws.send(JSON.stringify({ type: 'auth', token: login.body.access_token })));
+            ws.once('message', (raw) => resolve(JSON.parse(raw.toString())));
+        });
+        assert.equal(connectedMessage.type, 'connected');
+        ws.close();
+        await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
     });
 });
