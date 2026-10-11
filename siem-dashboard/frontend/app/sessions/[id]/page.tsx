@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react';
 import { use } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function SessionInvestigation({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [session, setSession] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`http://localhost:5000/api/sessions/${id}`)
+    fetch(`${API_BASE_URL}/api/sessions/${id}`)
       .then(r => r.json())
       .then(setSession)
       .catch(console.error);
