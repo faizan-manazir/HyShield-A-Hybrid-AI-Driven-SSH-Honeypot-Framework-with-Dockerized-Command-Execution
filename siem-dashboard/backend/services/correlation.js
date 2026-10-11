@@ -140,7 +140,7 @@ class CorrelationEngine {
                     // Escape special regex chars if necessary, but most of our dict doesn't have them
                     // Using word boundary to prevent 'w' or 'id' matching inside 'shadow' or 'cd'
                     const escaped = r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    return new RegExp(`(^|\\b|\\s)${escaped}(\\b|\\s|$)`).test(c);
+                    return new RegExp(`(^|\\b|\\s)${escaped}(\\b|\\s|$)`, 'i').test(c);
                 });
 
                 if (hasMatch(this.reconCommands, cmd)) {

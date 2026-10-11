@@ -16,3 +16,6 @@ siem-dashboard/backend/cowrie.json
 
 # Empty local fixture
 siem-dashboard/backend/test_data/cowrie.json
+
+# Node.js dependencies
+node_modules/
