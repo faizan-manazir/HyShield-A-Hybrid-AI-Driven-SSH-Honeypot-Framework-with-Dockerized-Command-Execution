@@ -3,6 +3,19 @@ const router = express.Router();
 const { getDb } = require('../db/migrate');
 const { resolveGeo } = require('../services/geoService');
 
+// Keep one malformed stored JSON payload from breaking an entire dashboard response.
+function safeJsonParse(value, fallback = {}) {
+    if (typeof value !== 'string') return fallback;
+    try {
+        const parsed = JSON.parse(value);
+        // API consumers expect an object; reject null, arrays, and primitives too.
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return fallback;
+        return parsed;
+    } catch (error) {
+        return fallback;
+    }
+}
+
 router.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 router.get('/alerts', async (req, res) => {
@@ -87,17 +100,24 @@ router.get('/events', async (req, res) => {
         `);
         
         const enrichedEvents = events.map(e => {
-            const payload = JSON.parse(e.payload);
+            const payload = safeJsonParse(e.payload);
             let mitre_context = null;
             if (e.session_summary) {
                 try {
-                    const parsed = JSON.parse(e.session_summary);
+                    const parsed = safeJsonParse(e.session_summary);
                     if (parsed.mitre && Array.isArray(parsed.mitre)) {
                         mitre_context = parsed.mitre.map(m => `${m.id} ${m.name} ${m.tactic}`).join(' | ');
                     }
                 } catch(err) {}
             }
-            return { ...payload, mitre_context };
+            return {
+                ...payload,
+                id: e.id,
+                session_id: e.session_id,
+                timestamp: e.timestamp ?? payload.timestamp ?? null,
+                eventid: e.eventid ?? payload.eventid ?? null,
+                mitre_context
+            };
         });
         res.json(enrichedEvents);
     } catch (e) { console.error(e); res.status(500).json({ error: 'Internal Server Error' }); }
@@ -146,7 +166,7 @@ router.get('/sessions', async (req, res) => {
             let summary = {};
             let mitre = [];
             if (s.summary) {
-                const parsed = JSON.parse(s.summary);
+                const parsed = safeJsonParse(s.summary);
                 summary = parsed.summary || {};
                 mitre = parsed.mitre || [];
             }
@@ -175,9 +195,9 @@ router.get('/sessions/:id', async (req, res) => {
         
         // Fetch raw events
         const rows = await db.all('SELECT payload FROM raw_events WHERE session_id = ? ORDER BY timestamp ASC', [s.session_id]);
-        const events = rows.map(r => JSON.parse(r.payload));
+        const events = rows.map(r => safeJsonParse(r.payload));
         
-        const parsed = JSON.parse(s.summary || '{}');
+        const parsed = safeJsonParse(s.summary || '{}');
         
         res.json({
             id: s.session_id,
@@ -225,7 +245,7 @@ router.get('/geo', async (req, res) => {
             // We'll estimate eventCount per session using the summary JSON
             let eventCount = 1;
             if (session.summary) {
-                const parsed = JSON.parse(session.summary);
+                const parsed = safeJsonParse(session.summary);
                 if (parsed.summary && parsed.summary.commandCount) eventCount = parsed.summary.commandCount + 2; // +2 for auth
             }
             const risk = session.risk_level || 'LOW';
@@ -285,7 +305,7 @@ router.get('/geo', async (req, res) => {
         const totalEvents = sessionList.reduce((acc, s) => {
             let c = 1;
             if (s.summary) {
-                 const p = JSON.parse(s.summary).summary;
+                 const p = safeJsonParse(s.summary).summary;
                  if (p && p.commandCount) c = p.commandCount;
             }
             return acc + c;
@@ -320,7 +340,7 @@ router.get('/fim', async (req, res) => {
         const events = await db.all("SELECT payload FROM raw_events WHERE eventid IN ('cowrie.session.file_download', 'cowrie.session.file_upload', 'cowrie.command.input') ORDER BY timestamp DESC LIMIT 1000");
         
         events.forEach(row => {
-            const e = JSON.parse(row.payload);
+            const e = safeJsonParse(row.payload);
             if (e.eventid === 'cowrie.session.file_download' || e.eventid === 'cowrie.session.file_upload') {
                 fimData.push({
                     id: Math.random().toString(),
@@ -333,6 +353,8 @@ router.get('/fim', async (req, res) => {
                     risk: 'CRITICAL'
                 });
             } else if (e.eventid === 'cowrie.command.input') {
+                // Persisted payloads may be malformed or lack the expected Cowrie fields.
+                if (typeof e.input !== 'string') return;
                 if (e.input.includes('rm ')) {
                     fimData.push({ id: Math.random().toString(), path: e.input.split('rm ')[1].split(' ')[0], action: 'deleted', user: 'root', time: new Date(e.timestamp).toLocaleString(), size: '0 B', hash: '-', risk: 'HIGH' });
                 } else if (e.input.includes('nano ') || e.input.includes('vi ') || e.input.includes('echo ') || e.input.includes('touch ')) {
@@ -371,7 +393,7 @@ router.get('/mitre', async (req, res) => {
         
         sessions.forEach(s => {
             if (s.summary) {
-                const parsed = JSON.parse(s.summary);
+                const parsed = safeJsonParse(s.summary);
                 if (parsed.mitre && Array.isArray(parsed.mitre)) {
                     parsed.mitre.forEach(m => {
                         increment(m.tactic, m.name);

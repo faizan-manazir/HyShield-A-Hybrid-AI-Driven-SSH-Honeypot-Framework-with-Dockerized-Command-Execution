@@ -2,12 +2,20 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const os = require('node:os');
 const { getDb, migrate, closeDb } = require('./db/migrate');
 const IngestionService = require('./services/ingestion');
 
-const testDbPath = path.join(__dirname, 'test_ingestion_hyshield.db');
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyshield-ingestion-test-'));
+const testDbPath = path.join(testDataDir, 'test_ingestion_hyshield.db');
 process.env.DB_PATH = testDbPath;
-const testLogPath = path.join(__dirname, 'test_data', 'test_cowrie.json');
+const testLogPath = path.join(testDataDir, 'test_cowrie.json');
+const activeIngestors = new Set();
+function createIngestor(logPath) {
+    const instance = new IngestionService(logPath);
+    activeIngestors.add(instance);
+    return instance;
+}
 
 // Helper to write to log file
 function appendLog(data) {
@@ -15,6 +23,82 @@ function appendLog(data) {
 }
 
 test('Phase 2: Ingestion & Persistence Tests', async (t) => {
+    // Close every watcher and remove only this run's temporary files even after assertion failures.
+    t.after(async () => {
+        for (const instance of activeIngestors) {
+            try { instance.closeFile(); } catch (error) {
+                console.warn('Ingestion test cleanup failed:', error.message);
+            }
+        }
+        await closeDb();
+        fs.rmSync(testDataDir, { recursive: true, force: true });
+    });
+    await t.test('0. Closing a watcher cancels a pending missing-file retry', async () => {
+        const missingPath = path.join(testDataDir, 'not-created-yet.json');
+        const waitingIngestor = createIngestor(missingPath);
+        waitingIngestor.watchFile();
+        assert.ok(waitingIngestor.watchRetryTimer, 'Missing file should schedule a retry');
+        waitingIngestor.closeFile();
+        assert.strictEqual(waitingIngestor.watchRetryTimer, null, 'Shutdown should clear the retry timer');
+        assert.strictEqual(waitingIngestor.stopped, true, 'Closed ingestor should not restart itself');
+    });
+
+    await t.test('0c. File disappearing during watcher setup schedules retry', async () => {
+        const disappearingPath = path.join(testDataDir, 'disappearing-cowrie.json');
+        fs.writeFileSync(disappearingPath, '');
+        const originalStatSync = fs.statSync;
+        const disappearingIngestor = createIngestor(disappearingPath);
+        disappearingIngestor.watchRetryIntervalMs = 1000;
+
+        try {
+            // Simulate rotation/removal between existsSync() and statSync().
+            fs.statSync = (candidate, ...args) => {
+                if (candidate === disappearingPath) {
+                    const error = new Error('simulated file disappeared');
+                    error.code = 'ENOENT';
+                    throw error;
+                }
+                return originalStatSync.call(fs, candidate, ...args);
+            };
+
+            disappearingIngestor.watchFile();
+            assert.strictEqual(disappearingIngestor.fd, null, 'No descriptor should remain open');
+            assert.ok(disappearingIngestor.watchRetryTimer, 'A retry should be scheduled after the open race');
+        } finally {
+            fs.statSync = originalStatSync;
+            disappearingIngestor.closeFile();
+            if (fs.existsSync(disappearingPath)) fs.unlinkSync(disappearingPath);
+        }
+    });
+
+    await t.test('0b. Watcher errors schedule recovery and can be cancelled on shutdown', async () => {
+        const watcherPath = path.join(testDataDir, 'watcher-error-cowrie.json');
+        fs.writeFileSync(watcherPath, '');
+        const originalWatch = fs.watch;
+        const fakeWatcher = new (require('node:events').EventEmitter)();
+        fakeWatcher.closed = false;
+        fakeWatcher.close = () => { fakeWatcher.closed = true; };
+        const watcherIngestor = createIngestor(watcherPath);
+        watcherIngestor.watchRetryIntervalMs = 1000;
+
+        try {
+            fs.watch = () => fakeWatcher;
+            watcherIngestor.watchFile();
+            assert.strictEqual(watcherIngestor.watcher, fakeWatcher, 'Watcher should be registered');
+            fakeWatcher.emit('error', new Error('simulated watcher failure'));
+            assert.strictEqual(watcherIngestor.watcher, null, 'Failed watcher should be cleared');
+            assert.ok(watcherIngestor.watchRetryTimer, 'Watcher failure should schedule a retry');
+            assert.strictEqual(fakeWatcher.closed, true, 'Failed watcher should be closed');
+
+            watcherIngestor.closeFile();
+            assert.strictEqual(watcherIngestor.watchRetryTimer, null, 'Shutdown should cancel the retry');
+        } finally {
+            fs.watch = originalWatch;
+            watcherIngestor.closeFile();
+            if (fs.existsSync(watcherPath)) fs.unlinkSync(watcherPath);
+        }
+    });
+
     // Setup clean environment
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
     if (fs.existsSync(testLogPath)) fs.unlinkSync(testLogPath);
@@ -25,7 +109,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     // Init DB
     const db = await migrate();
     
-    let ingestor = new IngestionService(testLogPath);
+    let ingestor = createIngestor(testLogPath);
     await ingestor.init();
 
     await t.test('1. Importing records and session reconstruction', async () => {
@@ -46,7 +130,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         ingestor.closeFile();
         
         // Start a new one to simulate restart
-        ingestor = new IngestionService(testLogPath);
+        ingestor = createIngestor(testLogPath);
         await ingestor.init(); // Will read from checkpoint
         
         // Wait just in case
@@ -68,6 +152,54 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         
         const malformed = events.find(e => e.eventid === 'error.malformed');
         assert.ok(malformed, 'Malformed line was stored');
+    });
+
+    await t.test('3b. Valid JSON primitives are quarantined without blocking later events', async () => {
+        appendLog('null');
+        appendLog(JSON.stringify({
+            eventid: 'cowrie.client.version',
+            timestamp: new Date().toISOString(),
+            version: 'test-client'
+        }));
+
+        await new Promise(r => setTimeout(r, 500));
+
+        const events = await db.all(
+            "SELECT * FROM raw_events WHERE eventid = 'cowrie.client.version'"
+        );
+        assert.strictEqual(events.length, 1, 'Valid event after JSON null must still be ingested');
+
+        const malformed = await db.all(
+            "SELECT payload FROM raw_events WHERE eventid = 'error.malformed'"
+        );
+        assert.ok(
+            malformed.some(row => JSON.parse(row.payload).raw_line === 'null'),
+            'JSON null must be retained as a malformed raw record for diagnostics'
+        );
+    });
+
+    await t.test('3c. A log created after startup is ingested without another write', async () => {
+        const latePath = path.join(testDataDir, 'late-created-cowrie.json');
+        if (fs.existsSync(latePath)) fs.unlinkSync(latePath);
+
+        const lateIngestor = createIngestor(latePath);
+        lateIngestor.watchRetryIntervalMs = 10;
+        await lateIngestor.init();
+
+        fs.writeFileSync(latePath, JSON.stringify({
+            eventid: 'cowrie.client.version',
+            timestamp: new Date().toISOString(),
+            version: 'late-created-test'
+        }) + '\n');
+
+        await new Promise(r => setTimeout(r, 100));
+
+        const events = await db.all(
+            "SELECT * FROM raw_events WHERE payload LIKE '%late-created-test%'"
+        );
+        assert.strictEqual(events.length, 1, 'Existing contents must be ingested when the missing log appears');
+
+        lateIngestor.closeFile();
     });
 
     await t.test('4. Log rotation / truncation', async () => {
@@ -219,6 +351,13 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         
         let events = await db.all("SELECT * FROM raw_events WHERE session_id = 's_trunc_col'");
         assert.strictEqual(events.length, 2, 'Should ingest both identical events because they are in different file generations (different inodes)');
+
+        // The path was unlinked and recreated above. Do not carry a file descriptor
+        // or watcher tied to the old inode into the following tests.
+        ingestor.closeFile();
+        ingestor = createIngestor(testLogPath);
+        await ingestor.init();
+        await ingestor.processNewData();
     });
 
     await t.test('12. Alert retained when criteria are no longer met', async () => {
@@ -289,7 +428,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         appendLog(JSON.stringify({ eventid: 'cowrie.login.success', session: 's_recover', timestamp: new Date().toISOString() }));
         
         // Start a brand new ingestion service to simulate crash/restart!
-        const newIngestor = new IngestionService(testLogPath);
+        const newIngestor = createIngestor(testLogPath);
         await newIngestor.init();
         
         await new Promise(r => setTimeout(r, 1000)); // wait for recovery sweep
@@ -334,12 +473,12 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('17. Generation persistence on same-size in-place rewrite', async () => {
-        const generationLogPath = path.join(__dirname, 'test_data', 'generation_cowrie.json');
+        const generationLogPath = path.join(testDataDir, 'generation_cowrie.json');
         if (fs.existsSync(generationLogPath)) fs.unlinkSync(generationLogPath);
         fs.writeFileSync(generationLogPath, '');
 
         const testDb = await migrate();
-        const testIngestor = new IngestionService(generationLogPath);
+        const testIngestor = createIngestor(generationLogPath);
         await testIngestor.init();
 
         const identicalPayload = JSON.stringify({ eventid: 'cowrie.session.connect', session: 's_gen', timestamp: '2026-01-01T00:00:00.000Z' });
@@ -354,7 +493,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         await closeDb();
 
         const restartDb = await migrate();
-        const restartIngestor = new IngestionService(generationLogPath);
+        const restartIngestor = createIngestor(generationLogPath);
         await restartIngestor.init();
         assert.strictEqual(restartIngestor.generation, firstCheckpoint.generation, 'Generation must survive restart');
 
@@ -373,8 +512,8 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('18. Rotated recovery remains incomplete until successful restart recovery', async () => {
-        const recoveryActivePath = path.join(__dirname, 'test_data', 'recovery_active.json');
-        const restoredFilePath = path.join(__dirname, 'test_data', 'recovery_restored.json');
+        const recoveryActivePath = path.join(testDataDir, 'recovery_active.json');
+        const restoredFilePath = path.join(testDataDir, 'recovery_restored.json');
         if (fs.existsSync(recoveryActivePath)) fs.unlinkSync(recoveryActivePath);
         if (fs.existsSync(restoredFilePath)) fs.unlinkSync(restoredFilePath);
         fs.writeFileSync(recoveryActivePath, '');
@@ -386,7 +525,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES ('888', ?, 0, 77, 0)
         `, [restoredFilePath]);
         
-        const missingRecovery = new IngestionService(recoveryActivePath);
+        const missingRecovery = createIngestor(recoveryActivePath);
         missingRecovery.db = testDb;
         await missingRecovery.recoverRotatedFiles();
         
@@ -397,6 +536,13 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         fs.writeFileSync(restoredFilePath, restoredPayload);
         
         const st = fs.statSync(restoredFilePath);
+        // Filesystem inode numbers can be reused after an earlier temporary file
+        // is unlinked. Remove only a stale checkpoint for this reused inode so
+        // the synthetic recovery checkpoint remains unambiguous.
+        await testDb.run(
+            "DELETE FROM checkpoints WHERE inode = ? AND inode <> '888'",
+            [st.ino.toString()]
+        );
         await testDb.run(`
             UPDATE checkpoints
             SET inode = ?, file_path = ?, last_offset = 0, generation = 77, completed = 0
@@ -411,7 +557,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             return originalRun.apply(this, arguments);
         };
 
-        const failedRecovery = new IngestionService(recoveryActivePath);
+        const failedRecovery = createIngestor(recoveryActivePath);
         failedRecovery.db = testDb;
         await failedRecovery.recoverRotatedFiles();
         testDb.run = originalRun;
@@ -424,7 +570,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         await closeDb();
         
         const restartDb = await migrate();
-        const ingestor18_restart = new IngestionService(recoveryActivePath);
+        const ingestor18_restart = createIngestor(recoveryActivePath);
         await ingestor18_restart.init();
         await new Promise(r => setTimeout(r, 1000));
         
@@ -440,8 +586,8 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('19. Rotated file shorter than checkpoint offset remains unresolved', async () => {
-        const recoveryActivePath = path.join(__dirname, 'test_data', 'short_offset_active.json');
-        const shorterRotatedPath = path.join(__dirname, 'test_data', 'short_offset_rotated.json');
+        const recoveryActivePath = path.join(testDataDir, 'short_offset_active.json');
+        const shorterRotatedPath = path.join(testDataDir, 'short_offset_rotated.json');
         if (fs.existsSync(recoveryActivePath)) fs.unlinkSync(recoveryActivePath);
         if (fs.existsSync(shorterRotatedPath)) fs.unlinkSync(shorterRotatedPath);
         fs.writeFileSync(recoveryActivePath, '');
@@ -455,7 +601,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES (?, ?, ?, 88, 0)
         `, [st.ino.toString(), shorterRotatedPath, st.size + 10]);
 
-        const recovery = new IngestionService(recoveryActivePath);
+        const recovery = createIngestor(recoveryActivePath);
         recovery.db = testDb;
         await recovery.recoverRotatedFiles();
 
@@ -468,7 +614,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('20. Rename handler with incomplete trailing line keeps checkpoint unresolved', async () => {
-        const renameIncompletePath = path.join(__dirname, 'test_data', 'rename_incomplete.json');
+        const renameIncompletePath = path.join(testDataDir, 'rename_incomplete.json');
         if (fs.existsSync(renameIncompletePath)) fs.unlinkSync(renameIncompletePath);
         fs.writeFileSync(renameIncompletePath, '');
 
@@ -480,7 +626,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES (?, ?, 0, 89, 0)
         `, [st.ino.toString(), renameIncompletePath]);
 
-        const renameIngestor = new IngestionService(renameIncompletePath);
+        const renameIngestor = createIngestor(renameIncompletePath);
         renameIngestor.db = testDb;
         renameIngestor.fd = fs.openSync(renameIncompletePath, 'r');
         renameIngestor.inode = st.ino.toString();
@@ -501,7 +647,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('21. Rename handler commits final offset before marking completion', async () => {
-        const renameSuccessPath = path.join(__dirname, 'test_data', 'rename_success.json');
+        const renameSuccessPath = path.join(testDataDir, 'rename_success.json');
         if (fs.existsSync(renameSuccessPath)) fs.unlinkSync(renameSuccessPath);
         fs.writeFileSync(renameSuccessPath, '');
 
@@ -513,7 +659,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES (?, ?, 0, 90, 0)
         `, [st.ino.toString(), renameSuccessPath]);
 
-        const renameIngestor = new IngestionService(renameSuccessPath);
+        const renameIngestor = createIngestor(renameSuccessPath);
         renameIngestor.db = testDb;
         renameIngestor.fd = fs.openSync(renameSuccessPath, 'r');
         renameIngestor.inode = st.ino.toString();
@@ -535,6 +681,47 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         assert.strictEqual(events.length, 2, 'All complete records must be processed during rename recovery');
 
         if (fs.existsSync(renameSuccessPath)) fs.unlinkSync(renameSuccessPath);
+    });
+
+    await t.test('22. Rotated recovery closes the file descriptor when checkpoint verification fails', async () => {
+        const recoveryPath = path.join(testDataDir, 'recovery_checkpoint_error.json');
+        if (fs.existsSync(recoveryPath)) fs.unlinkSync(recoveryPath);
+        const payload = JSON.stringify({
+            eventid: 'cowrie.session.connect',
+            session: 's_checkpoint_error',
+            timestamp: new Date().toISOString()
+        });
+        fs.writeFileSync(recoveryPath, payload + '\n');
+
+        const testDb = await migrate();
+        const st = fs.statSync(recoveryPath);
+        await testDb.run('DELETE FROM checkpoints WHERE inode = ?', [st.ino.toString()]);
+        await testDb.run(`
+            INSERT INTO checkpoints (inode, file_path, last_offset, generation, completed)
+            VALUES (?, ?, 0, 91, 0)
+        `, [st.ino.toString(), recoveryPath]);
+
+        const originalGet = testDb.get;
+        testDb.get = async function(query, params) {
+            if (query.includes('SELECT last_offset FROM checkpoints')) {
+                throw new Error('Simulated checkpoint verification failure');
+            }
+            return originalGet.apply(this, arguments);
+        };
+
+        const recovery = createIngestor(recoveryPath);
+        recovery.db = testDb;
+        await recovery.recoverRotatedFiles();
+        testDb.get = originalGet;
+
+        assert.strictEqual(recovery.fd, null, 'Recovery must close the descriptor even when checkpoint verification throws');
+        const checkpoint = await testDb.get(
+            'SELECT * FROM checkpoints WHERE inode = ?',
+            [st.ino.toString()]
+        );
+        assert.strictEqual(checkpoint.completed, 0, 'Failed checkpoint verification must not mark recovery complete');
+
+        if (fs.existsSync(recoveryPath)) fs.unlinkSync(recoveryPath);
     });
 
     // Cleanup

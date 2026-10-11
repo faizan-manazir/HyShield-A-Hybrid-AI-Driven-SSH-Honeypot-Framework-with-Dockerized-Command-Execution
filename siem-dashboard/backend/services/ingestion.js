@@ -19,6 +19,8 @@ class IngestionService {
         this.fingerprint = null;
         this.watcher = null;
         this.rewatchTimer = null;
+        this.watchRetryTimer = null;
+        this.watchRetryIntervalMs = 5000;
         this.stopped = false;
         this.db = null;
         this.isProcessing = false;
@@ -70,30 +72,36 @@ class IngestionService {
                         } else {
                             console.log(`[Ingestion] Recovering unread records from rotated file: ${f}`);
                             this.fd = fs.openSync(fullPath, 'r');
-                            this.offset = row.last_offset;
-                            this.inode = st.ino.toString();
-                            this.generation = row.generation;
-                            this.fileSize = row.file_size || 0;
-                            this.mtimeMs = row.mtime_ms || 0;
-                            this.ctimeMs = row.ctime_ms || 0;
-                            this.fingerprint = row.fingerprint || null;
-                            
-                            // Await full flush
-                            const result = await this.processNewData();
-                            
-                            const finalStats = fs.fstatSync(this.fd);
-                            const checkpointCommitted = await this.checkpointCoversFile(row.inode, finalStats.size);
-                            if (result.ok && result.checkpointCommitted && this.offset >= finalStats.size && checkpointCommitted) {
-                                success = true;
-                            } else {
-                                console.warn(`[Ingestion] Recovery incomplete for ${f}. Expected offset ${finalStats.size}, got ${this.offset}`);
+                            try {
+                                this.offset = row.last_offset;
+                                this.inode = st.ino.toString();
+                                this.generation = row.generation;
+                                this.fileSize = row.file_size || 0;
+                                this.mtimeMs = row.mtime_ms || 0;
+                                this.ctimeMs = row.ctime_ms || 0;
+                                this.fingerprint = row.fingerprint || null;
+
+                                // Await full flush
+                                const result = await this.processNewData();
+
+                                const finalStats = fs.fstatSync(this.fd);
+                                const checkpointCommitted = await this.checkpointCoversFile(row.inode, finalStats.size);
+                                if (result.ok && result.checkpointCommitted && this.offset >= finalStats.size && checkpointCommitted) {
+                                    success = true;
+                                } else {
+                                    console.warn(`[Ingestion] Recovery incomplete for ${f}. Expected offset ${finalStats.size}, got ${this.offset}`);
+                                }
+                            } finally {
+                                // Recovery can fail after opening the rotated file (for example, if
+                                // checkpoint verification fails). Never leak the descriptor.
+                                this.closeFile();
                             }
-                            
-                            this.closeFile();
                         }
                         break;
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.warn(`[Ingestion] Could not inspect rotated-file candidate ${fullPath}:`, e.message);
+                }
             }
             
             if (!fileFound) {
@@ -203,9 +211,12 @@ class IngestionService {
     watchFile() {
         this.stopped = false;
         if (!fs.existsSync(this.logFilePath)) {
-            console.warn(`[Ingestion] File ${this.logFilePath} does not exist yet. Waiting...`);
-            setTimeout(() => this.watchFile(), 5000);
+            this.scheduleWatchRetry(`File ${this.logFilePath} does not exist yet. Waiting...`);
             return;
+        }
+        if (this.watchRetryTimer) {
+            clearTimeout(this.watchRetryTimer);
+            this.watchRetryTimer = null;
         }
         if (this.watcher) {
             this.watcher.close();
@@ -216,8 +227,17 @@ class IngestionService {
             this.fd = null;
         }
 
-        const stats = fs.statSync(this.logFilePath);
-        this.fd = fs.openSync(this.logFilePath, 'r');
+        let stats;
+        try {
+            // The file can disappear between existsSync() and stat/open during rotation.
+            // Treat that race like a missing file and retry instead of crashing the watcher setup.
+            stats = fs.statSync(this.logFilePath);
+            this.fd = fs.openSync(this.logFilePath, 'r');
+        } catch (error) {
+            this.fd = null;
+            this.scheduleWatchRetry(`Could not open ${this.logFilePath}: ${error.message}`);
+            return;
+        }
         
         // Detect rotation or truncation (new generation needed if we dropped data)
         if (this.inode && this.inode !== stats.ino.toString()) {
@@ -233,14 +253,42 @@ class IngestionService {
             this.inode = stats.ino.toString();
         }
 
-        this.watcher = fs.watch(this.logFilePath, (eventType) => {
-            if (eventType === 'change') {
+        try {
+            this.watcher = fs.watch(this.logFilePath, (eventType) => {
+                if (eventType === 'change') {
+                    this.processNewData();
+                } else if (eventType === 'rename') {
+                    console.log('[Ingestion] File renamed/rotated. Re-watching...');
+                    this.handleRenameEvent().catch(console.error);
+                }
+            });
+            this.watcher.on('error', (error) => {
+                console.warn(`[Ingestion] File watcher failed for ${this.logFilePath}: ${error.message}`);
+                if (this.watcher) {
+                    this.watcher.close();
+                    this.watcher = null;
+                }
+                this.scheduleWatchRetry('Recovering from file watcher error');
+            });
+        } catch (error) {
+            this.watcher = null;
+            this.scheduleWatchRetry(`Could not watch ${this.logFilePath}: ${error.message}`);
+        }
+    }
+
+    scheduleWatchRetry(reason) {
+        console.warn(`[Ingestion] ${reason}`);
+        if (this.stopped) return;
+        if (this.watchRetryTimer) clearTimeout(this.watchRetryTimer);
+        this.watchRetryTimer = setTimeout(() => {
+            this.watchRetryTimer = null;
+            if (!this.stopped) {
+                this.watchFile();
+                // The file may already contain data by the time watching resumes.
+                // Catch up immediately instead of waiting for another fs.watch event.
                 this.processNewData();
-            } else if (eventType === 'rename') {
-                console.log('[Ingestion] File renamed/rotated. Re-watching...');
-                this.handleRenameEvent().catch(console.error);
             }
-        });
+        }, this.watchRetryIntervalMs);
     }
 
     async handleRenameEvent({ rewatch = true } = {}) {
@@ -251,7 +299,9 @@ class IngestionService {
             if (this.fd) {
                 try {
                     rotatedSize = fs.fstatSync(this.fd).size;
-                } catch (e) {}
+                } catch (e) {
+                    console.warn(`[Ingestion] Could not stat rotated file for inode=${rotatedInode}:`, e.message);
+                }
             }
 
             const completed = result.ok && await this.markCheckpointCompleteIfFullyProcessed(rotatedInode, rotatedSize, this.offset);
@@ -280,6 +330,10 @@ class IngestionService {
     closeFile(stop = true) {
         if (stop) {
             this.stopped = true;
+            if (this.watchRetryTimer) {
+                clearTimeout(this.watchRetryTimer);
+                this.watchRetryTimer = null;
+            }
             if (this.rewatchTimer) {
                 clearTimeout(this.rewatchTimer);
                 this.rewatchTimer = null;
@@ -371,6 +425,11 @@ class IngestionService {
                 let evt;
                 try {
                     evt = JSON.parse(line);
+                    // Cowrie records must be JSON objects. Valid JSON primitives such as
+                    // null must be quarantined as malformed, not abort the whole batch.
+                    if (!evt || typeof evt !== 'object' || Array.isArray(evt)) {
+                        throw new Error('Cowrie event must be a JSON object');
+                    }
                 } catch (e) {
                     this.metrics.errors++;
                     const malformedId = crypto.createHash('md5').update(`${this.logFilePath}|${this.inode}|${this.generation}|${startOffset}|${line}`).digest('hex');

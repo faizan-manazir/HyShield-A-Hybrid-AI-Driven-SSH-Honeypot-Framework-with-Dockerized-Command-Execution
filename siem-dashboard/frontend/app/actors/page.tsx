@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Users, ShieldAlert, Activity, MapPin, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function ActorsPage() {
   const [actors, setActors] = useState<any[]>([]);
@@ -10,7 +11,7 @@ export default function ActorsPage() {
   const [sortBy, setSortBy] = useState('EVENTS'); // EVENTS, RISK
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/actors')
+    fetch(`${API_BASE_URL}/api/actors`)
       .then(r => r.json())
       .then(setActors)
       .catch(console.error);

@@ -2,12 +2,13 @@
 import { useState, useEffect } from 'react';
 import { Bug, AlertTriangle, ShieldCheck, Server } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function VulnerabilitiesPage() {
   const [mockVulns, setMockVulns] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/vulnerabilities')
+    fetch(`${API_BASE_URL}/api/vulnerabilities`)
       .then(r => r.json())
       .then(setMockVulns)
       .catch(console.error);
