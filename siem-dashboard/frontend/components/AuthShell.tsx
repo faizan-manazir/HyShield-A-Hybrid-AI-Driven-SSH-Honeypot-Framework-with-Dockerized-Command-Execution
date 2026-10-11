@@ -14,6 +14,9 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const isLogin = pathname === "/login";
 
+  // Install the API fetch wrapper once. Re-installing it on every route change
+  // briefly restores native fetch, allowing child effects to issue unauthenticated
+  // requests while navigating from login to the dashboard.
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -27,9 +30,12 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
         return originalFetch(input, init);
       }
 
-      // Never attach a bearer token based on a string-prefix check: a URL such as
-      // http://localhost:5000.attacker.example could otherwise receive the token.
-      if (requestUrl.origin !== apiUrl.origin || requestUrl.pathname === "/api/auth/login") {
+      // Only attach credentials to the configured API origin, never a lookalike host.
+      if (
+        requestUrl.origin !== apiUrl.origin ||
+        !requestUrl.pathname.startsWith("/api/") ||
+        requestUrl.pathname === "/api/auth/login"
+      ) {
         return originalFetch(input, init);
       }
 
@@ -44,8 +50,9 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
           headers: { "Content-Type": "application/json" },
         });
       }
+
       const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-      if (token) headers.set("Authorization", `Bearer ${token}`);
+      headers.set("Authorization", `Bearer ${token}`);
       const response = await originalFetch(input, { ...init, headers });
 
       if (response.status === 401 && window.location.pathname !== "/login") {
@@ -56,6 +63,15 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
       return response;
     };
 
+    return () => {
+      // Restore the browser's original fetch when the shell unmounts.
+      window.fetch = originalFetch;
+    };
+  }, [router]);
+
+  // Route/session validation is separate from the stable fetch wrapper, so
+  // changing routes does not create a window where API requests lack auth.
+  useEffect(() => {
     const token = window.sessionStorage.getItem(TOKEN_KEY);
     const expiresAt = Number(window.sessionStorage.getItem(EXPIRY_KEY) || 0);
     const validSession = Boolean(token && expiresAt && Date.now() < expiresAt);
@@ -66,6 +82,7 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
           router.replace("/login");
         }, Math.max(0, expiresAt - Date.now()))
       : undefined;
+
     if (!validSession) {
       window.sessionStorage.removeItem(TOKEN_KEY);
       window.sessionStorage.removeItem(EXPIRY_KEY);
@@ -78,7 +95,6 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
     setReady(true);
 
     return () => {
-      window.fetch = originalFetch;
       if (expiryTimer !== undefined) window.clearTimeout(expiryTimer);
     };
   }, [isLogin, router]);
