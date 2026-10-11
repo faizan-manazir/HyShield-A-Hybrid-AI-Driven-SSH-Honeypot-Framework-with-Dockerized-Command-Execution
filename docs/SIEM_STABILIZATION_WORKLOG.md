@@ -199,3 +199,22 @@ Immediate next steps:
 3. Review ingestion shutdown/recovery lifecycle and error reporting, including the currently swallowed errors in rotated-file recovery, without weakening the regression tests.
 4. Continue the API authorization and deployment review. The API remains unauthenticated; keep the documented network exposure restriction in place.
 5. Inventory Python/FastAPI functionality before any consolidation/removal; Node.js/Express remains the agreed authoritative backend.
+
+
+## 12. Node 24 validation and further test hardening
+
+The workflow was switched to Node 24 because `geoip-lite@2.0.3` declares Node `>=24`. CI runs on the Node 24 commit confirmed the frontend build passed and the backend tests exposed one additional fixture issue in test 18: the operating system reused an inode number from a temporary file that an earlier test had deleted. The synthetic recovery checkpoint then collided with the stale checkpoint row (SQLite unique constraint), rather than failing because of the production recovery behavior itself.
+
+Commit `178599dbbfe9e4db01f858d885b1b4ffc2df8c20` updates test 18 to remove only a stale checkpoint row for the reused inode before assigning that inode to the synthetic recovery checkpoint. The same branch also now logs candidate-file inspection and rotated-file stat errors instead of silently swallowing them (`fd574e2e5f9c8174d8bfc6d0b98da86687e2d9b1`).
+
+**Validation of these latest changes is pending** in workflow run [38134939532](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38134939532). Do not treat Node 24 as fully green until that run finishes and both jobs pass.
+
+Latest work sequence:
+- `037f144`: added this stabilization work log.
+- `d47878b`: recreated ingestion service after test log replacement and tracked all service instances for cleanup; CI run 38134810579 passed all 44 tests and the frontend build on Node 22.
+- `d4f622e`: switched CI jobs to Node 24 to match the dependency engine requirement.
+- `dba885e`: documented the earlier pass and the runtime follow-up.
+- `fd574e2`: made rotated-file recovery inspection/stat failures visible in logs.
+- `178599d`: made test 18 resilient to OS inode reuse; CI pending.
+
+The PR remains draft and unmerged. Local user changes remain out of scope and must be preserved.
