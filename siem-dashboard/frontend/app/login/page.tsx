@@ -25,11 +25,12 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || typeof payload.token !== "string") {
+      if (!response.ok || typeof payload.access_token !== "string" || !Number.isFinite(payload.expires_in)) {
         setError("Sign-in failed. Check your credentials and try again.");
         return;
       }
-      window.sessionStorage.setItem(TOKEN_KEY, payload.token);
+      window.sessionStorage.setItem(TOKEN_KEY, payload.access_token);
+      window.sessionStorage.setItem(TOKEN_KEY + "_expires_at", String(Date.now() + payload.expires_in * 1000));
       router.replace("/");
     } catch {
       setError("Unable to reach the SIEM API. Check that the backend is running.");
