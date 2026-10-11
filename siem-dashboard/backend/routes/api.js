@@ -7,7 +7,10 @@ const { resolveGeo } = require('../services/geoService');
 function safeJsonParse(value, fallback = {}) {
     if (typeof value !== 'string') return fallback;
     try {
-        return JSON.parse(value);
+        const parsed = JSON.parse(value);
+        // API consumers expect an object; reject null, arrays, and primitives too.
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return fallback;
+        return parsed;
     } catch (error) {
         return fallback;
     }
@@ -343,6 +346,8 @@ router.get('/fim', async (req, res) => {
                     risk: 'CRITICAL'
                 });
             } else if (e.eventid === 'cowrie.command.input') {
+                // Persisted payloads may be malformed or lack the expected Cowrie fields.
+                if (typeof e.input !== 'string') return;
                 if (e.input.includes('rm ')) {
                     fimData.push({ id: Math.random().toString(), path: e.input.split('rm ')[1].split(' ')[0], action: 'deleted', user: 'root', time: new Date(e.timestamp).toLocaleString(), size: '0 B', hash: '-', risk: 'HIGH' });
                 } else if (e.input.includes('nano ') || e.input.includes('vi ') || e.input.includes('echo ') || e.input.includes('touch ')) {
