@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const TOKEN_TTL_SECONDS = 15 * 60;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 10;
+const MAX_TRACKED_LOGIN_CLIENTS = 10000;
 
 function safeEqual(a, b) {
     const left = Buffer.from(String(a));
@@ -58,6 +59,17 @@ function createAuth({ username, passwordHash, secret }) {
         const attempts = existing && nowMs - existing.windowStart < LOGIN_WINDOW_MS
             ? existing
             : { count: 0, windowStart: nowMs };
+
+        // Bound memory use if many distinct clients hit the public login endpoint.
+        if (!existing && loginFailures.size >= MAX_TRACKED_LOGIN_CLIENTS) {
+            for (const [key, value] of loginFailures) {
+                if (nowMs - value.windowStart >= LOGIN_WINDOW_MS) loginFailures.delete(key);
+            }
+            if (loginFailures.size >= MAX_TRACKED_LOGIN_CLIENTS) {
+                const oldestKey = loginFailures.keys().next().value;
+                if (oldestKey !== undefined) loginFailures.delete(oldestKey);
+            }
+        }
         if (attempts.count >= LOGIN_MAX_FAILURES) {
             res.setHeader('Retry-After', String(Math.ceil((LOGIN_WINDOW_MS - (nowMs - attempts.windowStart)) / 1000)));
             return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
