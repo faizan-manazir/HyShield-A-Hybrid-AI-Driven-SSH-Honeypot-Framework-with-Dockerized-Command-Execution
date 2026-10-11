@@ -422,6 +422,13 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         fs.writeFileSync(restoredFilePath, restoredPayload);
         
         const st = fs.statSync(restoredFilePath);
+        // Filesystem inode numbers can be reused after an earlier temporary file
+        // is unlinked. Remove only a stale checkpoint for this reused inode so
+        // the synthetic recovery checkpoint remains unambiguous.
+        await testDb.run(
+            "DELETE FROM checkpoints WHERE inode = ? AND inode <> '888'",
+            [st.ino.toString()]
+        );
         await testDb.run(`
             UPDATE checkpoints
             SET inode = ?, file_path = ?, last_offset = 0, generation = 77, completed = 0
