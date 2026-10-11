@@ -3,6 +3,7 @@ const assert = require('node:assert');
 const express = require('express');
 const request = require('supertest');
 const path = require('path');
+const os = require('node:os');
 const fs = require('fs');
 
 // We need to set up the DB before mounting routes
@@ -10,9 +11,10 @@ const { migrate, closeDb, getDb } = require('./db/migrate');
 const IngestionService = require('./services/ingestion');
 const apiRoutes = require('./routes/api');
 
-const testDbPath = path.join(__dirname, 'test_api_hyshield.db');
+// Use isolated temporary files; never delete or overwrite tracked Cowrie fixtures.
+const testDbPath = path.join(os.tmpdir(), `hyshield-api-test-${process.pid}.db`);
 process.env.DB_PATH = testDbPath;
-const testLogPath = path.join(__dirname, 'test_data', 'api_test_cowrie.json');
+const testLogPath = path.join(os.tmpdir(), `hyshield-api-test-${process.pid}.json`);
 
 const app = express();
 app.use(express.json());
@@ -79,6 +81,14 @@ test('API Regression Tests', async (t) => {
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.body.length, 3, 'Malformed payload should not hide valid events');
         assert.ok(res.body.some(event => event.mitre_context === null), 'Malformed payload should use a safe fallback');
+
+        // Valid JSON with an unexpected shape must not break FIM processing either.
+        await db.run(
+            'INSERT INTO raw_events (id, session_id, timestamp, eventid, payload) VALUES (?, ?, ?, ?, ?)',
+            ['null-payload-test', null, new Date().toISOString(), 'cowrie.command.input', 'null']
+        );
+        res = await request(app).get('/api/fim');
+        assert.strictEqual(res.status, 200, 'Unexpected payload shapes should not break FIM responses');
     });
 
     await t.test('3. API Error Handling does not leak DB details', async () => {
@@ -91,4 +101,7 @@ test('API Regression Tests', async (t) => {
 
     ingestor.closeFile();
     await closeDb();
+    for (const filePath of [testDbPath, `${testDbPath}-shm`, `${testDbPath}-wal`, testLogPath]) {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
 });
