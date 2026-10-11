@@ -9,7 +9,22 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(cors());
+const allowedOrigins = new Set(
+    (process.env.CORS_ORIGINS || 'http://localhost:3000')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+);
+
+app.use(cors({
+    origin(origin, callback) {
+        // Non-browser clients may omit Origin; browser origins must be allow-listed.
+        if (!origin || allowedOrigins.has(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error('Origin not allowed by CORS'));
+    }
+}));
 app.use(express.json());
 
 // Routes
@@ -33,6 +48,8 @@ const IngestionService = require('./services/ingestion');
 const path = require('path');
 
 const PORT = process.env.PORT || 5000;
+// Loopback is the safe default. Set HOST=0.0.0.0 only for an intentionally exposed/container deployment.
+const HOST = process.env.HOST || '127.0.0.1';
 
 async function startServer() {
     try {
@@ -47,8 +64,8 @@ async function startServer() {
         // Save globally if needed or just let it run
         global.ingestor = ingestor;
         
-        server.listen(PORT, () => {
-            console.log(`HyShield SIEM Backend running on port ${PORT}`);
+        server.listen(PORT, HOST, () => {
+            console.log(`HyShield SIEM Backend running on ${HOST}:${PORT}`);
         });
     } catch (e) {
         console.error("Failed to start server:", e);
