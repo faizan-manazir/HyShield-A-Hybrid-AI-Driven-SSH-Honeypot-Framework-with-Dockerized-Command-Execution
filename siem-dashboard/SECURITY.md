@@ -20,7 +20,7 @@ The API sets defensive response headers (content-type sniffing disabled, framing
 
 The current API does **not** implement application-level authentication or authorization. CORS is a browser policy, not an access-control mechanism; clients outside a browser can call the API directly. Do not expose this service to an untrusted network or the public internet as-is.
 
-Before remote exposure, place it behind an authenticated reverse proxy or VPN and restrict network access. Native user authentication and authorization remains a separate required security task. WebSocket origin validation is also not authentication.
+Before remote exposure, place it behind an authenticated reverse proxy or VPN and restrict network access. Native user authentication and authorization remains a separate required security task. WebSocket origin validation is also not authentication. WebSocket connections must send a JSON first message with type set to auth and token set to a valid bearer token within five seconds; the server closes connections that fail authentication before sending its connection acknowledgement.
 
 ## Frontend API URL
 
