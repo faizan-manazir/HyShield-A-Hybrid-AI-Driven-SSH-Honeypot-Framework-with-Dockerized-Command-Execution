@@ -307,10 +307,27 @@ class CorrelationEngine {
             mitreHits.push('T1204');
         }
 
-        // Download-then-Execute chain (compound indicator)
-        if (downloadHits.length > 0 && executionHits.length > 0) {
+        // Download-then-Execute chain: require the first download indicator to
+        // appear before the first execution indicator in the observed command order.
+        const firstDownloadIndex = commandsExecuted.findIndex(command =>
+            downloadHits.includes(command)
+        );
+        const firstExecutionIndex = commandsExecuted.findIndex(command =>
+            executionHits.includes(command)
+        );
+        const downloadThenExecute = firstDownloadIndex !== -1 &&
+            firstExecutionIndex !== -1 &&
+            firstDownloadIndex < firstExecutionIndex;
+
+        if (downloadThenExecute) {
             weaponScore += 5;
-            explanations.push({ score: 5, reason: 'Attack chain detected: Download → Execute sequence (staged payload delivery)', dimension: 'Weaponization', mitre: 'T1105' });
+            explanations.push({
+                score: 5,
+                reason: 'Attack chain detected: Download → Execute sequence (staged payload delivery)',
+                dimension: 'Weaponization',
+                mitre: 'T1105'
+            });
+            mitreHits.push('T1105');
         }
 
         // Cryptominer detection
