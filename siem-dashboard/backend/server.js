@@ -7,7 +7,6 @@ const apiRoutes = require('./routes/api');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
 
 const allowedOrigins = new Set(
     (process.env.CORS_ORIGINS || 'http://localhost:3000')
@@ -16,10 +15,19 @@ const allowedOrigins = new Set(
       .filter(Boolean)
 );
 
+const isAllowedOrigin = (origin) => !origin || allowedOrigins.has(origin);
+const wss = new WebSocketServer({
+    server,
+    verifyClient: (info, done) => {
+        if (isAllowedOrigin(info.origin)) return done(true);
+        return done(false, 403, 'Origin not allowed');
+    }
+});
+
 app.use(cors({
     origin(origin, callback) {
         // Non-browser clients may omit Origin; browser origins must be allow-listed.
-        if (!origin || allowedOrigins.has(origin)) {
+        if (isAllowedOrigin(origin)) {
             return callback(null, true);
         }
         return callback(new Error('Origin not allowed by CORS'));
