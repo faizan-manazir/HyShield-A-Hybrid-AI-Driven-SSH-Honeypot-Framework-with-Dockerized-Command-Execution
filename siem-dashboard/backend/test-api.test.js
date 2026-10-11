@@ -1,6 +1,5 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const express = require('express');
 const request = require('supertest');
 const path = require('path');
 const os = require('node:os');
@@ -9,16 +8,14 @@ const fs = require('fs');
 // We need to set up the DB before mounting routes
 const { migrate, closeDb, getDb } = require('./db/migrate');
 const IngestionService = require('./services/ingestion');
-const apiRoutes = require('./routes/api');
 
 // Use isolated temporary files; never delete or overwrite tracked Cowrie fixtures.
 const testDbPath = path.join(os.tmpdir(), `hyshield-api-test-${process.pid}.db`);
 process.env.DB_PATH = testDbPath;
 const testLogPath = path.join(os.tmpdir(), `hyshield-api-test-${process.pid}.json`);
 
-const app = express();
-app.use(express.json());
-app.use('/api', apiRoutes);
+// Exercise the same configured Express app used by the production server.
+const { app } = require('./server');
 
 test('API Regression Tests', async (t) => {
     let ingestor = null;
@@ -111,6 +108,41 @@ test('API Regression Tests', async (t) => {
         const res = await request(app).get('/api/sessions/invalid-id');
         assert.strictEqual(res.status, 404);
         assert.deepStrictEqual(res.body, { error: 'Session not found' });
+    });
+
+    await t.test('4. Security middleware rejects malformed and oversized JSON', async () => {
+        let res = await request(app)
+            .post('/api/health')
+            .set('Content-Type', 'application/json')
+            .send('{not-json');
+        assert.strictEqual(res.status, 400);
+        assert.deepStrictEqual(res.body, { error: 'Invalid JSON body' });
+
+        res = await request(app)
+            .post('/api/health')
+            .set('Content-Type', 'application/json')
+            .send(JSON.stringify({ payload: 'x'.repeat(1024 * 1024 + 32) }));
+        assert.strictEqual(res.status, 413);
+        assert.deepStrictEqual(res.body, { error: 'Request body too large' });
+    });
+
+    await t.test('5. Security headers and CORS allow-list are enforced', async () => {
+        const res = await request(app)
+            .get('/api/health')
+            .set('Origin', 'http://localhost:3000');
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.headers['x-content-type-options'], 'nosniff');
+        assert.strictEqual(res.headers['x-frame-options'], 'DENY');
+        assert.strictEqual(res.headers['referrer-policy'], 'no-referrer');
+        assert.strictEqual(res.headers['cache-control'], 'no-store');
+        assert.strictEqual(res.headers['x-powered-by'], undefined);
+        assert.strictEqual(res.headers['access-control-allow-origin'], 'http://localhost:3000');
+
+        const blocked = await request(app)
+            .get('/api/health')
+            .set('Origin', 'https://untrusted.example');
+        assert.strictEqual(blocked.status, 403);
+        assert.deepStrictEqual(blocked.body, { error: 'Origin not allowed' });
     });
 
 });
