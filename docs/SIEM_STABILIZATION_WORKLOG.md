@@ -293,3 +293,19 @@ A temporary CI-only remediation preview applied compatible npm updates in isolat
 - The temporary preview workflow was removed in commit `35057e9f486d9c08fbcc64f317029c2549e22025`. PR remains open and unmerged.
 
 Next: obtain a standard CI run on the current branch head, keep the 5 frontend tooling advisories explicitly tracked, and do not use `npm audit fix --force` or downgrade the Next 16 ESLint config merely to obtain a zero-count audit.
+
+
+## 18. End-to-end ingestion hardening: non-object JSON records
+
+A focused review of `processLines()` found that syntactically valid JSON primitives were not handled as malformed Cowrie records. In particular, a log line containing `null` parsed successfully, then property access on the null value threw an exception. Because processing is transactional, that could roll back the batch and leave the checkpoint unchanged, preventing later records in that batch from being ingested until a retry or restart.
+
+The ingestion parser now requires each parsed record to be a non-null JSON object and rejects arrays/primitives into the existing malformed-record path. The raw line is retained in `raw_events` with event ID `error.malformed`, and subsequent valid records continue through the batch.
+
+A regression test appends `null` followed by a valid Cowrie-style event and verifies both that the primitive is retained for diagnostics and that the later event is ingested. The test fixture deliberately has no session ID so it does not alter unrelated global session-count assertions.
+
+Validation in GitHub Actions run [38141187206](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38141187206):
+- Backend tests: **passed**.
+- Frontend production build: **passed**.
+- Backend and frontend dependency-audit reporting jobs: **completed successfully**. Audit job success means the report was generated; it does not mean all frontend advisories are resolved.
+
+This is a targeted ingestion robustness fix, not proof that all rotation, restart, or production deployment scenarios are fully validated. Continue the reliability review before considering the system stabilized.
