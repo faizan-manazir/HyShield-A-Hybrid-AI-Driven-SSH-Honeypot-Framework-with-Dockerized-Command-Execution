@@ -207,7 +207,7 @@ The workflow was switched to Node 24 because `geoip-lite@2.0.3` declares Node `>
 
 Commit `178599dbbfe9e4db01f858d885b1b4ffc2df8c20` updates test 18 to remove only a stale checkpoint row for the reused inode before assigning that inode to the synthetic recovery checkpoint. The same branch also now logs candidate-file inspection and rotated-file stat errors instead of silently swallowing them (`fd574e2e5f9c8174d8bfc6d0b98da86687e2d9b1`).
 
-**Validation of these latest changes is pending** in workflow run [38134939532](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38134939532). Do not treat Node 24 as fully green until that run finishes and both jobs pass.
+Validation completed successfully in workflow run [38134939532](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38134939532): **backend tests passed (44 passed, 0 failed) and the frontend production build passed under Node 24**. The backend install logs no longer show the previous `EBADENGINE` warning.
 
 Latest work sequence:
 - `037f144`: added this stabilization work log.
@@ -215,6 +215,19 @@ Latest work sequence:
 - `d4f622e`: switched CI jobs to Node 24 to match the dependency engine requirement.
 - `dba885e`: documented the earlier pass and the runtime follow-up.
 - `fd574e2`: made rotated-file recovery inspection/stat failures visible in logs.
-- `178599d`: made test 18 resilient to OS inode reuse; CI pending.
+- `178599d`: made test 18 resilient to OS inode reuse; workflow run 38134939532 passed both backend tests and frontend build under Node 24.
 
 The PR remains draft and unmerged. Local user changes remain out of scope and must be preserved.
+
+
+## 13. Latest verified state
+
+As of workflow run [38134939532](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38134939532) for code commit `178599dbbfe9e4db01f858d885b1b4ffc2df8c20`:
+
+- Backend: **passed, 44 passed / 0 failed**.
+- Frontend: **production build passed**.
+- Node runtime: **Node 24**, matching the `geoip-lite` engine declaration; no `EBADENGINE` warning was found in the backend install/test log.
+- Ingestion recovery error reporting: candidate-file inspection and stat failures are now logged rather than silently discarded.
+- Documentation: this work log records the validation and remaining risks.
+
+The latest documentation-only commit is `8400d9374f73976ca66885c30f87506f67a6232d`. The PR is still draft and unmerged. Remaining work is dependency advisory review, broader ingestion lifecycle review, and API authentication/authorization design; none of these should be described as complete.
