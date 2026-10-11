@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Settings, Save, Shield, Database, Lock, Server, CheckCircle2, Globe, FileCode2, Terminal, AlertTriangle, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
@@ -11,14 +12,14 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/settings')
+    fetch(`${API_BASE_URL}/api/settings`)
       .then(r => r.json())
       .then(setConfig)
       .catch(console.error);
   }, []);
 
   const handleSave = () => {
-    fetch('http://localhost:5000/api/settings', {
+    fetch(`${API_BASE_URL}/api/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
