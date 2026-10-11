@@ -2,12 +2,20 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const os = require('node:os');
 const { getDb, migrate, closeDb } = require('./db/migrate');
 const IngestionService = require('./services/ingestion');
 
-const testDbPath = path.join(__dirname, 'test_ingestion_hyshield.db');
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyshield-ingestion-test-'));
+const testDbPath = path.join(testDataDir, 'test_ingestion_hyshield.db');
 process.env.DB_PATH = testDbPath;
-const testLogPath = path.join(__dirname, 'test_data', 'test_cowrie.json');
+const testLogPath = path.join(testDataDir, 'test_cowrie.json');
+const activeIngestors = new Set();
+function createIngestor(logPath) {
+    const instance = new IngestionService(logPath);
+    activeIngestors.add(instance);
+    return instance;
+}
 
 // Helper to write to log file
 function appendLog(data) {
@@ -15,6 +23,16 @@ function appendLog(data) {
 }
 
 test('Phase 2: Ingestion & Persistence Tests', async (t) => {
+    // Close every watcher and remove only this run's temporary files even after assertion failures.
+    t.after(async () => {
+        for (const instance of activeIngestors) {
+            try { instance.closeFile(); } catch (error) {
+                console.warn('Ingestion test cleanup failed:', error.message);
+            }
+        }
+        await closeDb();
+        fs.rmSync(testDataDir, { recursive: true, force: true });
+    });
     // Setup clean environment
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
     if (fs.existsSync(testLogPath)) fs.unlinkSync(testLogPath);
@@ -334,7 +352,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('17. Generation persistence on same-size in-place rewrite', async () => {
-        const generationLogPath = path.join(__dirname, 'test_data', 'generation_cowrie.json');
+        const generationLogPath = path.join(testDataDir, 'generation_cowrie.json');
         if (fs.existsSync(generationLogPath)) fs.unlinkSync(generationLogPath);
         fs.writeFileSync(generationLogPath, '');
 
@@ -373,8 +391,8 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('18. Rotated recovery remains incomplete until successful restart recovery', async () => {
-        const recoveryActivePath = path.join(__dirname, 'test_data', 'recovery_active.json');
-        const restoredFilePath = path.join(__dirname, 'test_data', 'recovery_restored.json');
+        const recoveryActivePath = path.join(testDataDir, 'recovery_active.json');
+        const restoredFilePath = path.join(testDataDir, 'recovery_restored.json');
         if (fs.existsSync(recoveryActivePath)) fs.unlinkSync(recoveryActivePath);
         if (fs.existsSync(restoredFilePath)) fs.unlinkSync(restoredFilePath);
         fs.writeFileSync(recoveryActivePath, '');
@@ -440,8 +458,8 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('19. Rotated file shorter than checkpoint offset remains unresolved', async () => {
-        const recoveryActivePath = path.join(__dirname, 'test_data', 'short_offset_active.json');
-        const shorterRotatedPath = path.join(__dirname, 'test_data', 'short_offset_rotated.json');
+        const recoveryActivePath = path.join(testDataDir, 'short_offset_active.json');
+        const shorterRotatedPath = path.join(testDataDir, 'short_offset_rotated.json');
         if (fs.existsSync(recoveryActivePath)) fs.unlinkSync(recoveryActivePath);
         if (fs.existsSync(shorterRotatedPath)) fs.unlinkSync(shorterRotatedPath);
         fs.writeFileSync(recoveryActivePath, '');
@@ -468,7 +486,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('20. Rename handler with incomplete trailing line keeps checkpoint unresolved', async () => {
-        const renameIncompletePath = path.join(__dirname, 'test_data', 'rename_incomplete.json');
+        const renameIncompletePath = path.join(testDataDir, 'rename_incomplete.json');
         if (fs.existsSync(renameIncompletePath)) fs.unlinkSync(renameIncompletePath);
         fs.writeFileSync(renameIncompletePath, '');
 
@@ -501,7 +519,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     });
 
     await t.test('21. Rename handler commits final offset before marking completion', async () => {
-        const renameSuccessPath = path.join(__dirname, 'test_data', 'rename_success.json');
+        const renameSuccessPath = path.join(testDataDir, 'rename_success.json');
         if (fs.existsSync(renameSuccessPath)) fs.unlinkSync(renameSuccessPath);
         fs.writeFileSync(renameSuccessPath, '');
 
