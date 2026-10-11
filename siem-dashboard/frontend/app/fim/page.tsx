@@ -2,12 +2,13 @@
 import { useState, useEffect } from 'react';
 import { FileSearch, FileCode2, FileWarning, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function FIMPage() {
   const [mockFim, setMockFim] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/fim')
+    fetch(`${API_BASE_URL}/api/fim`)
       .then(r => r.json())
       .then(setMockFim)
       .catch(console.error);
