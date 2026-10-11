@@ -24,6 +24,18 @@ const wss = new WebSocketServer({
     }
 });
 
+// Reduce browser-side attack surface for API responses. These headers do not
+// replace authentication or network-level access controls.
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+});
+
 app.use(cors({
     origin(origin, callback) {
         // Non-browser clients may omit Origin; browser origins must be allow-listed.
@@ -33,7 +45,9 @@ app.use(cors({
         return callback(new Error('Origin not allowed by CORS'));
     }
 }));
-app.use(express.json());
+
+// SIEM event payloads should be small; reject oversized JSON before route handling.
+app.use(express.json({ limit: '1mb', strict: true }));
 
 // Routes
 app.use('/api', apiRoutes);
@@ -45,10 +59,22 @@ wss.on('connection', (ws) => {
     ws.on('close', () => console.log('Client disconnected'));
 });
 
-// Basic error handler
+// Return generic client errors; keep diagnostic details in server logs only.
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Internal Server Error' });
+    if (res.headersSent) return next(err);
+
+    if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+        return res.status(413).json({ error: 'Request body too large' });
+    }
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ error: 'Invalid JSON body' });
+    }
+    if (err && err.message === 'Origin not allowed by CORS') {
+        return res.status(403).json({ error: 'Origin not allowed' });
+    }
+
+    console.error('Unhandled API error:', err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'Internal Server Error' });
 });
 
 const { migrate } = require('./db/migrate');
@@ -62,16 +88,16 @@ const HOST = process.env.HOST || '127.0.0.1';
 async function startServer() {
     try {
         await migrate();
-        
+
         const logPath = process.env.COWRIE_LOG_PATH || path.join(__dirname, 'cowrie.json');
         console.log(`[Config] Using Cowrie log path: ${logPath}`);
-        
+
         const ingestor = new IngestionService(logPath);
         await ingestor.init();
-        
+
         // Save globally if needed or just let it run
         global.ingestor = ingestor;
-        
+
         server.listen(PORT, HOST, () => {
             console.log(`HyShield SIEM Backend running on ${HOST}:${PORT}`);
         });
