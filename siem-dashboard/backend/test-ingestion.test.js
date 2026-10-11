@@ -56,6 +56,30 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     let ingestor = createIngestor(testLogPath);
     await ingestor.init();
 
+    await t.test('0b. A log created after startup is ingested without another write', async () => {
+        const latePath = path.join(testDataDir, 'late-created-cowrie.json');
+        if (fs.existsSync(latePath)) fs.unlinkSync(latePath);
+
+        const lateIngestor = createIngestor(latePath);
+        lateIngestor.watchRetryIntervalMs = 10;
+        await lateIngestor.init();
+
+        fs.writeFileSync(latePath, JSON.stringify({
+            eventid: 'cowrie.client.version',
+            timestamp: new Date().toISOString(),
+            version: 'late-created-test'
+        }) + '\n');
+
+        await new Promise(r => setTimeout(r, 100));
+
+        const events = await db.all(
+            "SELECT * FROM raw_events WHERE payload LIKE '%late-created-test%'"
+        );
+        assert.strictEqual(events.length, 1, 'Existing contents must be ingested when the missing log appears');
+
+        lateIngestor.closeFile();
+    });
+
     await t.test('1. Importing records and session reconstruction', async () => {
         appendLog(JSON.stringify({ eventid: 'cowrie.session.connect', session: 's1', timestamp: new Date().toISOString(), src_ip: '192.168.1.100' }));
         appendLog(JSON.stringify({ eventid: 'cowrie.login.success', session: 's1', timestamp: new Date().toISOString(), username: 'root' }));
