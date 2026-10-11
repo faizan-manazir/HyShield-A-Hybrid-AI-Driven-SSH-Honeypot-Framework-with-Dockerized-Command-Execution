@@ -178,3 +178,24 @@ This phase is ready for review only when:
 - Ingestion behavior is validated for normal append, overlapping triggers, in-place truncation, rotation with unread data, and restart recovery.
 - Security limitations are documented accurately and the API is not represented as authenticated.
 - PR #5 remains unmerged until the user reviews and later tests it.
+
+
+## 11. Follow-up after documenting the work
+
+After adding this work log, commit `d47878b650fe41f0a8a7e4f59522d5e2a3474cce` updated the ingestion test lifecycle to recreate the ingestion service after the test deletes and recreates the log path, and ensured newly created services are tracked for cleanup.
+
+The resulting CI run, [38134810579](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38134810579), completed with:
+
+- **Backend tests: passed** — 44 passed, 0 failed; command exited successfully.
+- **Frontend production build: passed.**
+
+This confirms the four previously failing ingestion subtests passed on that commit. It does not by itself prove every production rotation scenario is correct; retain the tests and review the ingestion lifecycle before considering the SIEM fully stabilized.
+
+The run also confirmed the dependency engine warning: `geoip-lite@2.0.3` declares Node.js `>=24.0.0`, while CI had been using Node 22. The workflow has now been updated to Node 24 in both backend and frontend jobs (commit `d4f622e96d9762fbcdc7ab91b1277b6e71d8dc56`). **Validation under Node 24 is pending** and must be checked before marking the workflow fully green on the new runtime.
+
+Immediate next steps:
+1. Confirm both CI jobs pass using Node 24 and verify the `EBADENGINE` warning is gone.
+2. Review the full dependency audit reports and prioritize direct/transitive advisories without using forced upgrades.
+3. Review ingestion shutdown/recovery lifecycle and error reporting, including the currently swallowed errors in rotated-file recovery, without weakening the regression tests.
+4. Continue the API authorization and deployment review. The API remains unauthenticated; keep the documented network exposure restriction in place.
+5. Inventory Python/FastAPI functionality before any consolidation/removal; Node.js/Express remains the agreed authoritative backend.
