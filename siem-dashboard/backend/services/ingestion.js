@@ -227,8 +227,17 @@ class IngestionService {
             this.fd = null;
         }
 
-        const stats = fs.statSync(this.logFilePath);
-        this.fd = fs.openSync(this.logFilePath, 'r');
+        let stats;
+        try {
+            // The file can disappear between existsSync() and stat/open during rotation.
+            // Treat that race like a missing file and retry instead of crashing the watcher setup.
+            stats = fs.statSync(this.logFilePath);
+            this.fd = fs.openSync(this.logFilePath, 'r');
+        } catch (error) {
+            this.fd = null;
+            this.scheduleWatchRetry(`Could not open ${this.logFilePath}: ${error.message}`);
+            return;
+        }
         
         // Detect rotation or truncation (new generation needed if we dropped data)
         if (this.inode && this.inode !== stats.ino.toString()) {
