@@ -10,8 +10,11 @@ process.env.SIEM_ADMIN_PASSWORD_HASH = 'scrypt$' + salt + '$' + hash;
 process.env.SIEM_AUTH_SECRET = 'test-only-secret-that-is-at-least-32-bytes-long';
 
 const { app } = require('./server');
+const { migrate, closeDb } = require('./db/migrate');
 
 test('SIEM API authentication and request hardening', async (t) => {
+    await migrate();
+    t.after(async () => { await closeDb(); });
     let token;
     await t.test('login issues a short-lived bearer token for valid credentials', async () => {
         const res = await request(app).post('/api/auth/login')
