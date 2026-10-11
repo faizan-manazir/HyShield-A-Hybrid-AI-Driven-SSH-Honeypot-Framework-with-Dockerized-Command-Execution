@@ -175,6 +175,9 @@ class CorrelationEngine {
             }
         });
 
+        // Preserve original command order for sequence correlation before deduplicating scoring evidence.
+        const commandSequence = [...commandsExecuted];
+
         // Deduplicate command hits to prevent repeated identical commands from inflating the score endlessly
         commandsExecuted = [...new Set(commandsExecuted)];
         reconHits = [...new Set(reconHits)];
@@ -307,17 +310,14 @@ class CorrelationEngine {
             mitreHits.push('T1204');
         }
 
-        // Download-then-Execute chain: require the first download indicator to
-        // appear before the first execution indicator in the observed command order.
-        const firstDownloadIndex = commandsExecuted.findIndex(command =>
-            downloadHits.includes(command)
+        // Require at least one download command followed later by an execution command.
+        // Use the original sequence so repeated commands do not lose their observed order.
+        const downloadThenExecute = commandSequence.some((command, index) =>
+            downloadHits.includes(command) &&
+            commandSequence.slice(index + 1).some(laterCommand =>
+                executionHits.includes(laterCommand)
+            )
         );
-        const firstExecutionIndex = commandsExecuted.findIndex(command =>
-            executionHits.includes(command)
-        );
-        const downloadThenExecute = firstDownloadIndex !== -1 &&
-            firstExecutionIndex !== -1 &&
-            firstDownloadIndex < firstExecutionIndex;
 
         if (downloadThenExecute) {
             weaponScore += 5;
