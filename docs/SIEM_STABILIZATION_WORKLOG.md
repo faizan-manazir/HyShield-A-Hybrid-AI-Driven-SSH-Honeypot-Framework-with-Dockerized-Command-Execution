@@ -337,3 +337,55 @@ Validation in GitHub Actions run [38141399574](https://github.com/faizan-manazir
 - Both dependency-audit report jobs completed successfully; the five high-severity frontend tooling findings remain unresolved.
 
 This closes a concrete gap in late-start ingestion. Continue testing rotation, restart recovery, concurrent writes, and full UI-to-ingestion behavior before declaring the SIEM seamlessly stable.
+
+## 21. Local end-to-end validation and API event metadata fix (October 11, 2026)
+
+### Local test environment
+
+The user tested an extracted ZIP copy of the repository at:
+
+`C:\\Users\\Faizan\\Downloads\\HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution-fix-siem-api-hardening`
+
+This folder is an extracted copy and has no `.git` directory. It is useful as a local test copy but cannot itself create Git commits. The local results below must not be confused with CI results for the current GitHub branch.
+
+### Local verification reported by the user
+
+- Backend `npm test`: **48 tests passed, 0 failed**; no tests skipped or cancelled.
+- Frontend `npm run build`: **passed**; TypeScript validation and static page generation completed.
+- The local Node/Express API and Next.js dashboard were started at `localhost:5000` and `localhost:3000`, respectively.
+- The dashboard displayed the ingested Cowrie events and existing summary counts during this test.
+
+These results apply to the extracted local test copy and the code present there at the time. They do not replace a fresh CI run after the subsequent GitHub commit.
+
+### Malformed Cowrie record test
+
+The local Cowrie log was tested with a valid event, a malformed JSON line, and another valid event after the malformed line. Database inspection showed all three outcomes were retained:
+
+1. The first valid event was ingested.
+2. The malformed line was retained as an `error.malformed` diagnostic record.
+3. The following valid event was ingested, demonstrating that the malformed line did not prevent later data from being processed.
+
+The local Event Explorer displayed the `error.malformed` row. Initially, the API response for that row exposed the raw diagnostic payload but omitted the database event metadata because the response returned only the parsed payload and MITRE context.
+
+### API response mapping committed to the PR branch
+
+Commit [`5036088aa14ea5cffce707343f99108fd3b444bf`](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/commit/5036088aa14ea5cffce707343f99108fd3b444bf) updates `siem-dashboard/backend/routes/api.js` on `fix/siem-api-hardening`. The `/events` response now includes:
+
+- `id` from the database row;
+- `session_id` from the database row;
+- `timestamp`, preferring the stored database timestamp and falling back to the payload timestamp;
+- `eventid`, preferring the stored database event ID and falling back to the payload event ID;
+- the existing parsed payload and `mitre_context`.
+
+This allows diagnostic records such as `error.malformed` to retain their database identity and event classification in API responses, even when those fields are absent from the original raw JSON payload.
+
+After committing, the GitHub branch was inspected again. The metadata mapping was present on `fix/siem-api-hardening`; PR #5 remained open, in draft, and unmerged. A fresh CI result for commit `5036088aa14ea5cffce707343f99108fd3b444bf` was not verified at the time this section was written.
+
+### Current status and next steps
+
+1. Run or inspect standard GitHub Actions checks for the new branch head `5036088aa14ea5cffce707343f99108fd3b444bf`; record the exact run and outcomes.
+2. Keep the five previously documented high-severity frontend tooling advisories open until compatible remediation is validated.
+3. Continue end-to-end testing for event ingestion, malformed records, file rotation/restart recovery, and dashboard rendering.
+4. Preserve the user's original local working tree, modified fixtures, untracked `backend/` and `frontend/` directories, and existing stash. The extracted ZIP test copy is not a substitute for that original working tree.
+5. Keep PR #5 in draft and do not merge it until the user has reviewed and tested the changes.
+
