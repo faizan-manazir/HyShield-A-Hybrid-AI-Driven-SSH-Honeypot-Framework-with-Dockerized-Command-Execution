@@ -21,12 +21,26 @@ app.use(express.json());
 app.use('/api', apiRoutes);
 
 test('API Regression Tests', async (t) => {
+    let ingestor = null;
+    // Always close the watcher/database, even when setup or an assertion fails.
+    t.after(async () => {
+        if (ingestor) ingestor.closeFile();
+        await closeDb();
+        for (const filePath of [testDbPath, `${testDbPath}-shm`, `${testDbPath}-wal`, testLogPath]) {
+            try {
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch (error) {
+                console.warn(`Could not clean up temporary test file ${filePath}:`, error.message);
+            }
+        }
+    });
+
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
     if (fs.existsSync(testLogPath)) fs.unlinkSync(testLogPath);
     fs.writeFileSync(testLogPath, '');
 
     await migrate();
-    const ingestor = new IngestionService(testLogPath);
+    ingestor = new IngestionService(testLogPath);
     await ingestor.init();
 
     await t.test('1. Empty Database Responses', async () => {
@@ -99,9 +113,4 @@ test('API Regression Tests', async (t) => {
         assert.deepStrictEqual(res.body, { error: 'Session not found' });
     });
 
-    ingestor.closeFile();
-    await closeDb();
-    for (const filePath of [testDbPath, `${testDbPath}-shm`, `${testDbPath}-wal`, testLogPath]) {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    }
 });
