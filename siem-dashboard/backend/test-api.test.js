@@ -204,8 +204,21 @@ test('SIEM API regression, authentication and WebSocket security', async (t) => 
             ws.once('message', raw => resolve(JSON.parse(raw.toString())));
         });
         assert.equal(message.type, 'connected');
+        const closed = new Promise(resolve => ws.once('close', resolve));
         ws.close();
-        await new Promise(resolve => ws.once('close', resolve));
+        await closed;
         await closeServer();
+    });
+
+    await t.test('8. Repeated failed logins are rate-limited', async () => {
+        for (let i = 0; i < 9; i += 1) {
+            const res = await request(app).post('/api/auth/login')
+                .send({ username: 'test-admin', password: 'wrong-password' });
+            assert.equal(res.status, 401);
+        }
+        const blocked = await request(app).post('/api/auth/login')
+            .send({ username: 'test-admin', password: 'wrong-password' });
+        assert.equal(blocked.status, 429);
+        assert.ok(Number(blocked.headers['retry-after']) > 0);
     });
 });
