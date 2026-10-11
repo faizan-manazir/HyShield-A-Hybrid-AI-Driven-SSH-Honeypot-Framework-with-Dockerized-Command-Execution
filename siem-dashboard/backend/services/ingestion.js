@@ -20,6 +20,7 @@ class IngestionService {
         this.watcher = null;
         this.rewatchTimer = null;
         this.watchRetryTimer = null;
+        this.watchRetryIntervalMs = 5000;
         this.stopped = false;
         this.db = null;
         this.isProcessing = false;
@@ -214,8 +215,13 @@ class IngestionService {
             if (this.watchRetryTimer) clearTimeout(this.watchRetryTimer);
             this.watchRetryTimer = setTimeout(() => {
                 this.watchRetryTimer = null;
-                if (!this.stopped) this.watchFile();
-            }, 5000);
+                if (!this.stopped) {
+                    this.watchFile();
+                    // The file may already contain data by the time it appears.
+                    // Catch up immediately instead of waiting for another fs.watch event.
+                    this.processNewData();
+                }
+            }, this.watchRetryIntervalMs);
             return;
         }
         if (this.watchRetryTimer) {
