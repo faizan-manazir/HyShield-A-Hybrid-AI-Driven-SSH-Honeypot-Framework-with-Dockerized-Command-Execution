@@ -1,0 +1,37 @@
+name: SIEM Backend Tests
+
+on:
+  pull_request:
+    paths:
+      - "siem-dashboard/backend/**"
+      - ".github/workflows/siem-backend-tests.yml"
+  push:
+    branches:
+      - siem-integration
+      - "fix/siem-api-hardening"
+    paths:
+      - "siem-dashboard/backend/**"
+      - ".github/workflows/siem-backend-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: siem-dashboard/backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: siem-dashboard/backend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run backend tests
+        run: npm test
