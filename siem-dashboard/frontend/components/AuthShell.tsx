@@ -17,8 +17,19 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (!url.startsWith(API_BASE_URL) || url.startsWith(`${API_BASE_URL}/api/auth/login`)) {
+      const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      let requestUrl: URL;
+      let apiUrl: URL;
+      try {
+        requestUrl = new URL(rawUrl, window.location.href);
+        apiUrl = new URL(API_BASE_URL, window.location.href);
+      } catch {
+        return originalFetch(input, init);
+      }
+
+      // Never attach a bearer token based on a string-prefix check: a URL such as
+      // http://localhost:5000.attacker.example could otherwise receive the token.
+      if (requestUrl.origin !== apiUrl.origin || requestUrl.pathname === "/api/auth/login") {
         return originalFetch(input, init);
       }
 
