@@ -262,3 +262,20 @@ Do not run `npm audit fix --force` or accept an automatic major downgrade. Next 
 4. Remediate backend `proxy-addr` and `qs` through compatible transitive updates; inspect the dependency path before changing direct package versions.
 
 The audit workflow currently reports findings without failing the build, so the main backend/frontend checks can still pass while advisories remain. **Dependency remediation is not yet complete.**
+
+
+## 15. Watcher shutdown fix and regression coverage
+
+Further review found that `watchFile()` scheduled a bare five-second retry with `setTimeout` when the Cowrie log did not exist. That timer was not stored, so `closeFile()` could not cancel it; a stopped ingestion instance could keep a timer alive and later call `watchFile()` again.
+
+Commit `f04d4988363e5f2ea52c815972f6b3fc05aafafb` stores this as `watchRetryTimer`, avoids multiple pending retry timers, clears it once the file appears, and cancels it on shutdown. Commit `0f519b376cc8d5940b0cc1bd4046e32916be73b1` adds a regression test that verifies a missing-file retry is scheduled and that closing the service clears the timer and prevents restart.
+
+CI run [38135066228](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38135066228) passed the backend suite and frontend build for the commit before this timer fix; the timer fix and new test require the next CI run to validate.
+
+## 16. Audit CI status
+
+The dependency-audit job has been added to the workflow and reports findings without masking the backend/frontend test results. On the audit run:
+
+- Backend: 2 advisories (1 critical `proxy-addr`, 1 moderate `qs`), both marked fixable.
+- Frontend: 10 advisories (9 high, 1 critical), including critical `next` advisories for the locked `16.3.2` version. The audit indicates Next `16.4.0` is a non-major fix for the current Next line; the current `eslint-config-next` fix suggestion is a major downgrade and must not be applied blindly.
+- Audit results are detailed in Section 14. Package upgrades and regenerated lockfiles have **not** yet been committed. Resolve the advisories with compatible updates and validate the resulting lockfiles, tests, and production build before calling dependency security complete.
