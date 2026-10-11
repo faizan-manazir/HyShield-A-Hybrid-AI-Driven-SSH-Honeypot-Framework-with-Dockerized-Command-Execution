@@ -175,6 +175,9 @@ class CorrelationEngine {
             }
         });
 
+        // Preserve original command order for sequence correlation before deduplicating scoring evidence.
+        const commandSequence = [...commandsExecuted];
+
         // Deduplicate command hits to prevent repeated identical commands from inflating the score endlessly
         commandsExecuted = [...new Set(commandsExecuted)];
         reconHits = [...new Set(reconHits)];
@@ -234,7 +237,7 @@ class CorrelationEngine {
 
         // Suspicious SSH client fingerprint bonus
         const suspiciousClients = ['Mirai', 'Hydra', 'libssh', 'AsyncSSH', 'Go', 'paramiko'];
-        if (suspiciousClients.some(c => sshClient.includes(c))) {
+        if (suspiciousClients.some(c => sshClient.toLowerCase().includes(c.toLowerCase()))) {
             accessScore = Math.min(25, accessScore + 3);
             explanations.push({ score: 3, reason: `Suspicious SSH client: ${sshClient} (commonly used by automated attack tools)`, dimension: 'Access', mitre: null });
         }
@@ -307,10 +310,24 @@ class CorrelationEngine {
             mitreHits.push('T1204');
         }
 
-        // Download-then-Execute chain (compound indicator)
-        if (downloadHits.length > 0 && executionHits.length > 0) {
+        // Require at least one download command followed later by an execution command.
+        // Use the original sequence so repeated commands do not lose their observed order.
+        const downloadThenExecute = commandSequence.some((command, index) =>
+            downloadHits.includes(command) &&
+            commandSequence.slice(index + 1).some(laterCommand =>
+                executionHits.includes(laterCommand)
+            )
+        );
+
+        if (downloadThenExecute) {
             weaponScore += 5;
-            explanations.push({ score: 5, reason: 'Attack chain detected: Download → Execute sequence (staged payload delivery)', dimension: 'Weaponization', mitre: 'T1105' });
+            explanations.push({
+                score: 5,
+                reason: 'Attack chain detected: Download → Execute sequence (staged payload delivery)',
+                dimension: 'Weaponization',
+                mitre: 'T1105'
+            });
+            mitreHits.push('T1105');
         }
 
         // Cryptominer detection
@@ -339,9 +356,19 @@ class CorrelationEngine {
             intentScore += latScore;
 
             // Distinguish account creation vs lateral movement
-            const accountCreation = lateralHits.filter(c => c.includes('useradd') || c.includes('adduser') || c.includes('passwd'));
-            const pivotAttempts = lateralHits.filter(c => c.includes('ssh ') || c.includes('pty.spawn') || c.includes('nc ') || c.includes('python'));
-            const persistence = lateralHits.filter(c => c.includes('crontab') || c.includes('at '));
+            const accountCreation = lateralHits.filter(c => {
+                const normalized = c.toLowerCase();
+                return normalized.includes('useradd') || normalized.includes('adduser') || normalized.includes('passwd');
+            });
+            const pivotAttempts = lateralHits.filter(c => {
+                const normalized = c.toLowerCase();
+                return normalized.includes('ssh ') || normalized.includes('pty.spawn') ||
+                    normalized.includes('nc ') || normalized.includes('python');
+            });
+            const persistence = lateralHits.filter(c => {
+                const normalized = c.toLowerCase();
+                return normalized.includes('crontab') || normalized.includes('at ');
+            });
 
             if (accountCreation.length > 0) {
                 explanations.push({ score: 7, reason: `Backdoor account creation: ${accountCreation[0]}`, dimension: 'Intent', mitre: 'T1136' });
