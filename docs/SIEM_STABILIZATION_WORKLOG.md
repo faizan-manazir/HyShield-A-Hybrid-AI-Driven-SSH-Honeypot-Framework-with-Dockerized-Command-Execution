@@ -279,3 +279,17 @@ The dependency-audit job has been added to the workflow and reports findings wit
 - Backend: 2 advisories (1 critical `proxy-addr`, 1 moderate `qs`), both marked fixable.
 - Frontend: 10 advisories (9 high, 1 critical), including critical `next` advisories for the locked `16.3.2` version. The audit indicates Next `16.4.0` is a non-major fix for the current Next line; the current `eslint-config-next` fix suggestion is a major downgrade and must not be applied blindly.
 - Audit results are detailed in Section 14. Package upgrades and regenerated lockfiles have **not** yet been committed. Resolve the advisories with compatible updates and validate the resulting lockfiles, tests, and production build before calling dependency security complete.
+
+
+## 17. Dependency remediation progress (October 11, 2026)
+
+A temporary CI-only remediation preview applied compatible npm updates in isolated runners, exported proposed lockfiles, and validated them before they were copied into the PR branch. The temporary workflow was removed after its work completed.
+
+- **Backend:** `npm audit fix` reduced the backend audit from 2 advisories (1 critical, 1 moderate) to **0 reported vulnerabilities**. The backend test suite passed against the remediated dependency tree.
+- **Frontend:** updated `next` and `eslint-config-next` together from `16.3.2` to `16.4.0`; compatible `npm audit fix` updates were applied. The production build passed against the proposed remediated dependency tree.
+- **Remaining frontend audit:** 5 high-severity findings remain in `@next/eslint-plugin-next`, `eslint-config-next`, `fast-glob`, `micromatch`, and `braces`. They are tied to the ESLint tooling dependency chain. The current npm audit suggests downgrading `eslint-config-next` to `14.2.35`, which is incompatible with the project's Next 16 line, so that downgrade was deliberately not applied. The upstream `braces` advisory currently lists no patched version. These findings remain open and are not represented as fixed.
+- The validated dependency manifests and lockfiles were committed by the temporary preview workflow in commit `cbc2dbcc2b8f8796030605e3b3546e445b2e0b6c` (`fix: remediate npm dependency security advisories`).
+- The standard CI run for that bot-created commit reported `action_required`, so **the newly committed lockfiles still need a normal CI run against the branch**. The preview workflow's backend tests and frontend production build passed, but this is not a substitute for the standard CI run.
+- The temporary preview workflow was removed in commit `35057e9f486d9c08fbcc64f317029c2549e22025`. PR remains open and unmerged.
+
+Next: obtain a standard CI run on the current branch head, keep the 5 frontend tooling advisories explicitly tracked, and do not use `npm audit fix --force` or downgrade the Next 16 ESLint config merely to obtain a zero-count audit.
