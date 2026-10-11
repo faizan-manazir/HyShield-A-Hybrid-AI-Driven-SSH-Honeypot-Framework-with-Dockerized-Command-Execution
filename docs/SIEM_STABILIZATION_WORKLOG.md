@@ -231,3 +231,34 @@ As of workflow run [38134939532](https://github.com/faizan-manazir/HyShield-A-Hy
 - Documentation: this work log records the validation and remaining risks.
 
 The latest documentation-only commit is `8400d9374f73976ca66885c30f87506f67a6232d`. The PR is still draft and unmerged. Remaining work is dependency advisory review, broader ingestion lifecycle review, and API authentication/authorization design; none of these should be described as complete.
+
+
+## 14. Dependency audit results
+
+The new CI dependency-audit matrix ran successfully for both projects in workflow [38135066228](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/38135066228). These are audit findings, not test failures.
+
+### Backend
+
+The audit reports **2 vulnerabilities: 1 critical and 1 moderate**, both transitive and both marked as having a fix available:
+
+- `proxy-addr` — critical; advisory [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h), IPv4-mapped IPv6 trust-subnet/IP spoofing issue; affected range reported as `1.1.0 - 2.0.7`, fixed version is at least `2.0.8`.
+- `qs` — moderate; advisories [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx) and [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g); the audit says a fix is available.
+
+### Frontend
+
+The audit reports **10 vulnerabilities: 9 high and 1 critical**. The most urgent direct dependency finding is:
+
+- `next` — critical, currently locked at `16.3.2`; audit says affected versions include `16.0.0 - 16.3.7` and a non-major fix is available in `16.4.0`. The reported advisories include multiple issues affecting image optimization, `next/og`, cache handling, self-hosted SSG/ISR, development-server information disclosure, and SSRF. Review [GHSA-vcvr-r3jv-pc5j](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j), [GHSA-3w37-wq28-93x7](https://github.com/advisories/GHSA-3w37-wq28-93x7), and [GHSA-cjq9-62q9-8jv4](https://github.com/advisories/GHSA-cjq9-62q9-8jv4) among the advisories surfaced by the audit.
+- `eslint-config-next` and transitive linting dependencies `@next/eslint-plugin-next`, `fast-glob`, `braces`, and `micromatch` are also reported. The audit suggests a major downgrade path for `eslint-config-next`; do **not** apply that downgrade blindly because the project is on Next 16.
+- Other fixable transitive findings include `js-yaml`, `source-map-js`, and `sharp`.
+
+### Safe remediation plan
+
+Do not run `npm audit fix --force` or accept an automatic major downgrade. Next actions:
+
+1. Update Next.js and its matching `eslint-config-next` together to a compatible patched release (audit indicates Next `16.4.0` or later) and regenerate the lockfile with npm.
+2. Apply non-breaking `npm audit fix` updates in each project, inspect the resulting package/lockfile diff, and rerun the complete backend suite and frontend production build.
+3. Verify the audit again after updates and document any remaining advisory with a reasoned risk decision.
+4. Remediate backend `proxy-addr` and `qs` through compatible transitive updates; inspect the dependency path before changing direct package versions.
+
+The audit workflow currently reports findings without failing the build, so the main backend/frontend checks can still pass while advisories remain. **Dependency remediation is not yet complete.**
