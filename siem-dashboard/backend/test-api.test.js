@@ -6,6 +6,7 @@ const path = require('node:path');
 const os = require('node:os');
 const fs = require('node:fs');
 const { WebSocket } = require('ws');
+const { signToken } = require('./auth');
 
 const testDbPath = path.join(os.tmpdir(), 'hyshield-auth-test-' + process.pid + '.db');
 const testLogPath = path.join(os.tmpdir(), 'hyshield-auth-test-' + process.pid + '.json');
@@ -90,6 +91,39 @@ test('SIEM API regression, authentication and WebSocket security', async (t) => 
         const res = await request(app).get('/api/health');
         assert.equal(res.status, 200);
         assert.deepEqual(res.body, { status: 'ok' });
+    });
+
+    await t.test('expired signed bearer tokens are rejected', async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const expiredToken = signToken({
+            sub: 'test-admin',
+            role: 'admin',
+            iat: now - 120,
+            exp: now - 1
+        }, process.env.SIEM_AUTH_SECRET);
+        const res = await request(app).get('/api/events')
+            .set('Authorization', 'Bearer ' + expiredToken);
+        assert.equal(res.status, 401);
+        assert.deepEqual(res.body, { error: 'Authentication required' });
+    });
+
+    await t.test('analyst tokens can read but cannot mutate SIEM resources', async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const analystToken = signToken({
+            sub: 'test-analyst',
+            role: 'analyst',
+            iat: now,
+            exp: now + 60
+        }, process.env.SIEM_AUTH_SECRET);
+
+        const read = await request(app).get('/api/events')
+            .set('Authorization', 'Bearer ' + analystToken);
+        assert.equal(read.status, 200);
+
+        const write = await request(app).patch('/api/alerts/1/close')
+            .set('Authorization', 'Bearer ' + analystToken);
+        assert.equal(write.status, 403);
+        assert.deepEqual(write.body, { error: 'Insufficient permissions' });
     });
 
     await t.test('1. Empty database responses', async () => {
