@@ -43,6 +43,34 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         assert.strictEqual(waitingIngestor.stopped, true, 'Closed ingestor should not restart itself');
     });
 
+    await t.test('0b. Watcher errors schedule recovery and can be cancelled on shutdown', async () => {
+        const watcherPath = path.join(testDataDir, 'watcher-error-cowrie.json');
+        fs.writeFileSync(watcherPath, '');
+        const originalWatch = fs.watch;
+        const fakeWatcher = new (require('node:events').EventEmitter)();
+        fakeWatcher.closed = false;
+        fakeWatcher.close = () => { fakeWatcher.closed = true; };
+        const watcherIngestor = createIngestor(watcherPath);
+        watcherIngestor.watchRetryIntervalMs = 1000;
+
+        try {
+            fs.watch = () => fakeWatcher;
+            watcherIngestor.watchFile();
+            assert.strictEqual(watcherIngestor.watcher, fakeWatcher, 'Watcher should be registered');
+            fakeWatcher.emit('error', new Error('simulated watcher failure'));
+            assert.strictEqual(watcherIngestor.watcher, null, 'Failed watcher should be cleared');
+            assert.ok(watcherIngestor.watchRetryTimer, 'Watcher failure should schedule a retry');
+            assert.strictEqual(fakeWatcher.closed, true, 'Failed watcher should be closed');
+
+            watcherIngestor.closeFile();
+            assert.strictEqual(watcherIngestor.watchRetryTimer, null, 'Shutdown should cancel the retry');
+        } finally {
+            fs.watch = originalWatch;
+            watcherIngestor.closeFile();
+            if (fs.existsSync(watcherPath)) fs.unlinkSync(watcherPath);
+        }
+    });
+
     // Setup clean environment
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
     if (fs.existsSync(testLogPath)) fs.unlinkSync(testLogPath);
