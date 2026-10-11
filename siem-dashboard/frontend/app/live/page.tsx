@@ -4,6 +4,8 @@ import { Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '@/lib/api';
 
+const TOKEN_KEY = 'hyshield_siem_token';
+
 export function getEventCategory(eventId: string | null | undefined) {
     const id = typeof eventId === 'string' ? eventId.toLowerCase() : '';
 
@@ -15,13 +17,50 @@ export function getEventCategory(eventId: string | null | undefined) {
 
 export default function LiveActivity() {
   const [events, setEvents] = useState<any[]>([]);
-  useEffect(() => { fetch(`${API_BASE_URL}/api/events`).then(r => r.json()).then(setEvents).catch(console.error); }, []);
+  const [socketStatus, setSocketStatus] = useState('connecting');
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/events`)
+      .then(r => {
+        if (!r.ok) throw new Error('Unable to load events');
+        return r.json();
+      })
+      .then(setEvents)
+      .catch(console.error);
+
+    const token = window.sessionStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setSocketStatus('authentication required');
+      return;
+    }
+
+    const socketUrl = API_BASE_URL.replace(/^http/, 'ws');
+    const socket = new WebSocket(socketUrl);
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ type: 'auth', token }));
+    });
+    socket.addEventListener('message', event => {
+      try {
+        const message = JSON.parse(String(event.data));
+        if (message.type === 'connected') setSocketStatus('authenticated');
+      } catch {
+        // Ignore non-JSON WebSocket messages.
+      }
+    });
+    socket.addEventListener('error', () => setSocketStatus('connection error'));
+    socket.addEventListener('close', event => {
+      setSocketStatus(event.code === 1008 ? 'authentication failed' : 'disconnected');
+    });
+
+    return () => socket.close();
+  }, []);
 
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
         <Activity className="text-cyan-500" /> Live Activity Stream
       </h1>
+      <p className="text-xs text-gray-500 mb-4">Live channel: <span className="text-cyan-400">{socketStatus}</span></p>
       <div className="bg-[#111116] border border-white/5 rounded-xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto max-h-[750px] overflow-y-auto">
           <table className="w-full text-left text-sm text-gray-400">

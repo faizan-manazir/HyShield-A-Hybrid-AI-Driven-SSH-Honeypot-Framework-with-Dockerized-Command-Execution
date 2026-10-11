@@ -9,19 +9,38 @@ const COLORS = ['#8b5cf6', '#f97316', '#3b82f6', '#6b7280']; // AUTH, CMD, SESS,
 
 export default function SecurityOverview() {
   const [data, setData] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [topActors, setTopActors] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = () => {
       fetch(`${API_BASE_URL}/api/overview/metrics`)
-        .then(res => res.json())
-        .then(setData)
-        .catch(console.error);
-        
+        .then(async res => {
+          const payload = await res.json().catch(() => null);
+          if (!res.ok) {
+            throw new Error(payload?.error || `Metrics request failed (HTTP ${res.status})`);
+          }
+          if (!payload?.metrics || !Array.isArray(payload.timeline) ||
+              !Array.isArray(payload.categoryData) || !Array.isArray(payload.recentAlerts)) {
+            throw new Error('The SIEM API returned an unexpected metrics response. Check authentication and backend logs.');
+          }
+          setData(payload);
+          setLoadError(null);
+        })
+        .catch(error => {
+          console.error('Unable to load SIEM overview:', error);
+          setData(null);
+          setLoadError(error instanceof Error ? error.message : 'Unable to load SIEM overview.');
+        });
+
       fetch(`${API_BASE_URL}/api/actors`)
-        .then(res => res.json())
-        .then(data => setTopActors(data.slice(0, 5)))
-        .catch(console.error);
+        .then(async res => {
+          const payload = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(payload?.error || `Actors request failed (HTTP ${res.status})`);
+          if (!Array.isArray(payload)) throw new Error('The SIEM API returned an unexpected actors response.');
+          setTopActors(payload.slice(0, 5));
+        })
+        .catch(error => console.error('Unable to load SIEM actors:', error));
     };
 
     fetchData(); // initial fetch
@@ -29,7 +48,16 @@ export default function SecurityOverview() {
     return () => clearInterval(interval);
   }, []);
 
-  if (!data) return <div className="p-8 text-gray-400 animate-pulse flex items-center gap-3"><Zap className="w-5 h-5 text-cyan-500"/> Initializing Live SIEM Telemetry...</div>;
+  if (!data) return (
+    <div className="p-8 text-gray-400">
+      <div className="flex items-center gap-3">
+        <Zap className="w-5 h-5 text-cyan-500" />
+        {loadError ? 'Unable to load SIEM overview.' : 'Initializing Live SIEM Telemetry...'}
+      </div>
+      {loadError && <p role="alert" className="mt-3 text-sm text-rose-400">{loadError}</p>}
+      {loadError && <p className="mt-2 text-sm text-gray-500">Check that the backend is running, authentication is configured in the backend process, and the dashboard is signed in.</p>}
+    </div>
+  );
 
   const metrics = [
     { label: 'TOTAL EVENTS', value: data.metrics.totalEvents.toLocaleString(), icon: Activity, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' },

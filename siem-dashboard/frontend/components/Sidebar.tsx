@@ -1,9 +1,9 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Activity, Search, AlertTriangle, Users, Terminal, Settings, Target, Bug, FileSearch, Globe } from 'lucide-react';
+import { Shield, Activity, Search, AlertTriangle, Users, Terminal, Settings, Target, Bug, FileSearch, Globe, LogOut } from 'lucide-react';
 
-export default function Sidebar() {
+export default function Sidebar({ onLogout }: { onLogout: () => void }) {
   const pathname = usePathname();
 
   const links = [
@@ -61,7 +61,11 @@ export default function Sidebar() {
         ))}
       </nav>
       
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 space-y-2">
+        <button type="button" onClick={onLogout} className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-white/5 transition-colors text-gray-500 hover:text-gray-300">
+          <LogOut className="w-4 h-4" />
+          <span className="text-sm font-medium">Sign out</span>
+        </button>
         <Link href="/settings" className="flex items-center gap-3 px-3 py-2 w-full rounded-lg hover:bg-white/5 transition-colors text-gray-500 hover:text-gray-300">
           <Settings className="w-4 h-4" />
           <span className="text-sm font-medium">System Settings</span>
