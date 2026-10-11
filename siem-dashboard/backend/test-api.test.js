@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 // We need to set up the DB before mounting routes
-const { migrate, closeDb } = require('./db/migrate');
+const { migrate, closeDb, getDb } = require('./db/migrate');
 const IngestionService = require('./services/ingestion');
 const apiRoutes = require('./routes/api');
 
@@ -68,6 +68,17 @@ test('API Regression Tests', async (t) => {
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.body.id, 'sess-api-1', 'Should fetch specific session');
         assert.strictEqual(res.body.events.length, 2, 'Session should have 2 raw events embedded');
+
+        // Corrupt persisted JSON should not make the entire events endpoint fail.
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO raw_events (id, session_id, timestamp, eventid, payload) VALUES (?, ?, ?, ?, ?)',
+            ['malformed-json-test', null, new Date().toISOString(), 'test.malformed', '{not-json']
+        );
+        res = await request(app).get('/api/events');
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.body.length, 3, 'Malformed payload should not hide valid events');
+        assert.ok(res.body.some(event => event.mitre_context === null), 'Malformed payload should use a safe fallback');
     });
 
     await t.test('3. API Error Handling does not leak DB details', async () => {
