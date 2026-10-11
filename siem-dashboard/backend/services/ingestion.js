@@ -71,26 +71,30 @@ class IngestionService {
                         } else {
                             console.log(`[Ingestion] Recovering unread records from rotated file: ${f}`);
                             this.fd = fs.openSync(fullPath, 'r');
-                            this.offset = row.last_offset;
-                            this.inode = st.ino.toString();
-                            this.generation = row.generation;
-                            this.fileSize = row.file_size || 0;
-                            this.mtimeMs = row.mtime_ms || 0;
-                            this.ctimeMs = row.ctime_ms || 0;
-                            this.fingerprint = row.fingerprint || null;
-                            
-                            // Await full flush
-                            const result = await this.processNewData();
-                            
-                            const finalStats = fs.fstatSync(this.fd);
-                            const checkpointCommitted = await this.checkpointCoversFile(row.inode, finalStats.size);
-                            if (result.ok && result.checkpointCommitted && this.offset >= finalStats.size && checkpointCommitted) {
-                                success = true;
-                            } else {
-                                console.warn(`[Ingestion] Recovery incomplete for ${f}. Expected offset ${finalStats.size}, got ${this.offset}`);
+                            try {
+                                this.offset = row.last_offset;
+                                this.inode = st.ino.toString();
+                                this.generation = row.generation;
+                                this.fileSize = row.file_size || 0;
+                                this.mtimeMs = row.mtime_ms || 0;
+                                this.ctimeMs = row.ctime_ms || 0;
+                                this.fingerprint = row.fingerprint || null;
+
+                                // Await full flush
+                                const result = await this.processNewData();
+
+                                const finalStats = fs.fstatSync(this.fd);
+                                const checkpointCommitted = await this.checkpointCoversFile(row.inode, finalStats.size);
+                                if (result.ok && result.checkpointCommitted && this.offset >= finalStats.size && checkpointCommitted) {
+                                    success = true;
+                                } else {
+                                    console.warn(`[Ingestion] Recovery incomplete for ${f}. Expected offset ${finalStats.size}, got ${this.offset}`);
+                                }
+                            } finally {
+                                // Recovery can fail after opening the rotated file (for example, if
+                                // checkpoint verification fails). Never leak the descriptor.
+                                this.closeFile();
                             }
-                            
-                            this.closeFile();
                         }
                         break;
                     }
