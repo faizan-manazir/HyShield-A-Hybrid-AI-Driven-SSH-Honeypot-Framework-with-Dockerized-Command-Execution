@@ -1,0 +1,103 @@
+name: SIEM Backend and Frontend Checks
+
+on:
+  pull_request:
+    paths:
+      - "siem-dashboard/backend/**"
+      - "siem-dashboard/frontend/**"
+      - ".github/workflows/siem-backend-tests.yml"
+  push:
+    branches:
+      - siem-integration
+      - "fix/siem-api-hardening"
+    paths:
+      - "siem-dashboard/backend/**"
+      - "siem-dashboard/frontend/**"
+      - ".github/workflows/siem-backend-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: siem-dashboard/backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: siem-dashboard/backend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run backend tests
+        run: timeout 120s npm test
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: siem-dashboard/frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: siem-dashboard/frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build dashboard
+        run: npm run build
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - siem-dashboard/backend
+          - siem-dashboard/frontend
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Report dependency advisories
+        shell: bash
+        run: |
+          npm audit --json > audit-report.json || true
+          node -e '
+            const report = require("./audit-report.json");
+            const counts = report.metadata?.vulnerabilities || {};
+            console.log("Audit summary:", JSON.stringify(counts));
+            for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
+              console.log(JSON.stringify({
+                name,
+                severity: item.severity,
+                direct: item.isDirect,
+                range: item.range,
+                fixAvailable: item.fixAvailable,
+                via: item.via.map(v => typeof v === "string" ? v : {
+                  name: v.name, title: v.title, url: v.url, range: v.range
+                })
+              }));
+            }
+          '

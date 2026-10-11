@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Terminal, Clock, Activity, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function SessionsIndexPage() {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -10,7 +11,7 @@ export default function SessionsIndexPage() {
   const [sortBy, setSortBy] = useState('LATEST'); // LATEST, THREAT, EVENTS
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/sessions')
+    fetch(`${API_BASE_URL}/api/sessions`)
       .then(r => r.json())
       .then(setSessions)
       .catch(console.error);

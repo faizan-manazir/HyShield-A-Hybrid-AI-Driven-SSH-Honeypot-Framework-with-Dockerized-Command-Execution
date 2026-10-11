@@ -4,6 +4,7 @@ import { Globe, Shield, MapPin, Activity, Navigation, Radio, ArrowUpRight, Filte
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { ComposableMap, Geographies, Geography, Marker, Line, Graticule, Sphere } from 'react-simple-maps';
+import { API_BASE_URL } from '@/lib/api';
 
 const geoUrl = "/countries-110m.json";
 
@@ -71,7 +72,7 @@ export default function GeoMapPage() {
   const handleSimulateAttacks = async () => {
     setGenerating(true);
     try {
-      await fetch('http://localhost:5000/api/generate-events', { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/generate-events`, { method: 'POST' });
       fetchData();
     } catch (err) {
       console.error("Failed to generate attacks", err);
@@ -82,7 +83,7 @@ export default function GeoMapPage() {
 
   const fetchData = () => {
     setLoading(true);
-    fetch('http://localhost:5000/api/geo')
+    fetch(`${API_BASE_URL}/api/geo`)
       .then(res => res.json())
       .then((payload: GeoPayload) => {
         setData(payload);
@@ -101,7 +102,7 @@ export default function GeoMapPage() {
     fetchData(); // Initial load with spinner
     
     const fetchLive = () => {
-      fetch('http://localhost:5000/api/geo')
+      fetch(`${API_BASE_URL}/api/geo`)
         .then(res => res.json())
         .then((payload: GeoPayload) => setData(payload))
         .catch(console.error);
@@ -304,7 +305,7 @@ export default function GeoMapPage() {
                         default: { outline: "none" },
                         hover: { fill: "#1f273b", outline: "none" },
                         pressed: { outline: "none" },
-                      }}
+                      } as any}
                     />
                   ))
                 }

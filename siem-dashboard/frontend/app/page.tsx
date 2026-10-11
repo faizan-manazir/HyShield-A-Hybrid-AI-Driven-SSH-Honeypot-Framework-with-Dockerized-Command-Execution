@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Activity, ShieldAlert, Users, Zap, Shield, PieChart as PieChartIcon } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/lib/api';
 
 const COLORS = ['#8b5cf6', '#f97316', '#3b82f6', '#6b7280']; // AUTH, CMD, SESS, INFO
 
@@ -12,12 +13,12 @@ export default function SecurityOverview() {
 
   useEffect(() => {
     const fetchData = () => {
-      fetch('http://localhost:5000/api/overview/metrics')
+      fetch(`${API_BASE_URL}/api/overview/metrics`)
         .then(res => res.json())
         .then(setData)
         .catch(console.error);
         
-      fetch('http://localhost:5000/api/actors')
+      fetch(`${API_BASE_URL}/api/actors`)
         .then(res => res.json())
         .then(data => setTopActors(data.slice(0, 5)))
         .catch(console.error);

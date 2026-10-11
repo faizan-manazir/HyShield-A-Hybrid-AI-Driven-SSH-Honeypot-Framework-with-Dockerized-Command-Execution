@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
   
   useEffect(() => { 
     const fetchAlerts = () => {
-      fetch('http://localhost:5000/api/alerts')
+      fetch(`${API_BASE_URL}/api/alerts`)
         .then(r => r.json())
         .then(setAlerts)
         .catch(console.error); 
@@ -22,7 +23,7 @@ export default function AlertsPage() {
 
   const closeAlert = async (id: string) => {
     try {
-      await fetch(`http://localhost:5000/api/alerts/${id}/close`, { method: 'PATCH' });
+      await fetch(`${API_BASE_URL}/api/alerts/${id}/close`, { method: 'PATCH' });
       setAlerts(alerts.map(a => a.id === id ? { ...a, status: 'CLOSED' } : a));
     } catch (e) {
       console.error(e);
