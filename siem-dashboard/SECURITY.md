@@ -29,3 +29,21 @@ The dashboard uses `NEXT_PUBLIC_API_BASE_URL` for its API base URL. If unset, it
 ## Dependency advisories
 
 Review `../docs/FRONTEND_DEPENDENCY_AUDIT_REVIEW.md` before changing frontend tooling dependencies. Do not use `npm audit fix --force` or downgrade Next.js to silence advisories without compatibility testing. The audit workflow reports findings; a successful workflow job does not mean all advisories are remediated.
+
+
+## Phase 2: native API authentication (in progress)
+
+The backend authentication implementation is being introduced on a separate branch and is not approved for deployment until the dashboard login flow and end-to-end tests are complete.
+
+Required server-side environment:
+- `SIEM_ADMIN_USERNAME`: a dedicated administrator username.
+- `SIEM_ADMIN_PASSWORD_HASH`: scrypt password hash in `scrypt$<salt-hex>$<hash-hex>` format. Never store the plaintext password in source control.
+- `SIEM_AUTH_SECRET`: a randomly generated secret of at least 32 bytes. Keep it in the deployment secret store; do not reuse it across environments.
+
+The login endpoint issues a short-lived bearer token. Protected API routes reject missing/invalid tokens. Mutating HTTP methods require the administrator role. This initial implementation is a single-admin bootstrap, not a complete multi-user/RBAC system; rate limiting, account lifecycle, token revocation, and audit logging still need review before production.
+
+## Remote deployment boundary
+
+Do not bind the service to a public interface or open inbound firewall ports during implementation. For remote access, prefer a VPN/private network. If an internet-facing deployment is eventually approved, use a maintained reverse proxy with TLS, strong authentication, request limits, restricted source networks, and explicit WebSocket proxy/origin configuration. Keep the Node API on loopback or a private container network behind that proxy. CORS alone is not access control.
+
+Never commit real credentials or secrets. Rotate any secret that was accidentally exposed.
