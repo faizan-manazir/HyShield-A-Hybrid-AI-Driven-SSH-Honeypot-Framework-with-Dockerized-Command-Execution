@@ -48,6 +48,13 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
     const token = window.sessionStorage.getItem(TOKEN_KEY);
     const expiresAt = Number(window.sessionStorage.getItem(EXPIRY_KEY) || 0);
     const validSession = Boolean(token && expiresAt && Date.now() < expiresAt);
+    const expiryTimer = validSession
+      ? window.setTimeout(() => {
+          window.sessionStorage.removeItem(TOKEN_KEY);
+          window.sessionStorage.removeItem(EXPIRY_KEY);
+          router.replace("/login");
+        }, Math.max(0, expiresAt - Date.now()))
+      : undefined;
     if (!validSession) {
       window.sessionStorage.removeItem(TOKEN_KEY);
       window.sessionStorage.removeItem(EXPIRY_KEY);
@@ -59,7 +66,10 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
     }
     setReady(true);
 
-    return () => { window.fetch = originalFetch; };
+    return () => {
+      window.fetch = originalFetch;
+      if (expiryTimer !== undefined) window.clearTimeout(expiryTimer);
+    };
   }, [isLogin, router]);
 
   if (!ready) return <div className="p-8 text-gray-400">Loading secure session…</div>;
