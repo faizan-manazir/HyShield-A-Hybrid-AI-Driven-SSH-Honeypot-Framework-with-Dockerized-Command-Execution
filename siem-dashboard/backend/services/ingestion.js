@@ -19,6 +19,7 @@ class IngestionService {
         this.fingerprint = null;
         this.watcher = null;
         this.rewatchTimer = null;
+        this.watchRetryTimer = null;
         this.stopped = false;
         this.db = null;
         this.isProcessing = false;
@@ -206,8 +207,16 @@ class IngestionService {
         this.stopped = false;
         if (!fs.existsSync(this.logFilePath)) {
             console.warn(`[Ingestion] File ${this.logFilePath} does not exist yet. Waiting...`);
-            setTimeout(() => this.watchFile(), 5000);
+            if (this.watchRetryTimer) clearTimeout(this.watchRetryTimer);
+            this.watchRetryTimer = setTimeout(() => {
+                this.watchRetryTimer = null;
+                if (!this.stopped) this.watchFile();
+            }, 5000);
             return;
+        }
+        if (this.watchRetryTimer) {
+            clearTimeout(this.watchRetryTimer);
+            this.watchRetryTimer = null;
         }
         if (this.watcher) {
             this.watcher.close();
@@ -284,6 +293,10 @@ class IngestionService {
     closeFile(stop = true) {
         if (stop) {
             this.stopped = true;
+            if (this.watchRetryTimer) {
+                clearTimeout(this.watchRetryTimer);
+                this.watchRetryTimer = null;
+            }
             if (this.rewatchTimer) {
                 clearTimeout(this.rewatchTimer);
                 this.rewatchTimer = null;
