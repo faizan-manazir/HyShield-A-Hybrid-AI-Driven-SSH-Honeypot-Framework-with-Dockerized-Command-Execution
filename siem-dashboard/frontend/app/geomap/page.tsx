@@ -305,7 +305,7 @@ export default function GeoMapPage() {
                         default: { outline: "none" },
                         hover: { fill: "#1f273b", outline: "none" },
                         pressed: { outline: "none" },
-                      }}
+                      } as any}
                     />
                   ))
                 }
