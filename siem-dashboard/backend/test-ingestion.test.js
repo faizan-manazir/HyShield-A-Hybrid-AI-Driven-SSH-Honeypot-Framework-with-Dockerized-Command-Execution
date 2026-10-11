@@ -98,6 +98,31 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         assert.ok(malformed, 'Malformed line was stored');
     });
 
+    await t.test('3b. Valid JSON primitives are quarantined without blocking later events', async () => {
+        appendLog('null');
+        appendLog(JSON.stringify({
+            eventid: 'cowrie.session.connect',
+            session: 's_after_primitive',
+            timestamp: new Date().toISOString(),
+            src_ip: '192.0.2.10'
+        }));
+
+        await new Promise(r => setTimeout(r, 500));
+
+        const events = await db.all(
+            "SELECT * FROM raw_events WHERE session_id = 's_after_primitive'"
+        );
+        assert.strictEqual(events.length, 1, 'Valid event after JSON null must still be ingested');
+
+        const malformed = await db.all(
+            "SELECT payload FROM raw_events WHERE eventid = 'error.malformed'"
+        );
+        assert.ok(
+            malformed.some(row => JSON.parse(row.payload).raw_line === 'null'),
+            'JSON null must be retained as a malformed raw record for diagnostics'
+        );
+    });
+
     await t.test('4. Log rotation / truncation', async () => {
         // Truncate file
         fs.writeFileSync(testLogPath, '');
