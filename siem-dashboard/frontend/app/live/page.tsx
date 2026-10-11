@@ -4,10 +4,12 @@ import { Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '@/lib/api';
 
-export function getEventCategory(eventId: string) {
-    if (eventId.includes('login')) return { label: 'AUTH', color: 'bg-purple-500/20 text-purple-400 border-purple-500/20' };
-    if (eventId.includes('command')) return { label: 'CMD', color: 'bg-orange-500/20 text-orange-400 border-orange-500/20' };
-    if (eventId.includes('connect') || eventId.includes('closed')) return { label: 'SESS', color: 'bg-blue-500/20 text-blue-400 border-blue-500/20' };
+export function getEventCategory(eventId: string | null | undefined) {
+    const id = typeof eventId === 'string' ? eventId.toLowerCase() : '';
+
+    if (id.includes('login')) return { label: 'AUTH', color: 'bg-purple-500/20 text-purple-400 border-purple-500/20' };
+    if (id.includes('command')) return { label: 'CMD', color: 'bg-orange-500/20 text-orange-400 border-orange-500/20' };
+    if (id.includes('connect') || id.includes('closed')) return { label: 'SESS', color: 'bg-blue-500/20 text-blue-400 border-blue-500/20' };
     return { label: 'INFO', color: 'bg-gray-500/20 text-gray-400 border-gray-500/20' };
 }
 
