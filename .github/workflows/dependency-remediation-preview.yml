@@ -57,6 +57,8 @@ jobs:
       - run: npm ci
       - name: Upgrade Next.js and matching ESLint config to patched 16.x
         run: npm install --save-exact next@16.4.0 eslint-config-next@16.4.0
+      - name: Override vulnerable transitive braces release
+        run: npm pkg set 'overrides.braces=^3.0.4'
       - name: Apply compatible patch/minor dependency fixes
         run: npm audit fix
       - name: Validate frontend production build
