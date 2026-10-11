@@ -270,10 +270,14 @@ class CorrelationEngine {
             }
 
             // Network discovery (netstat, ss, lsof)
-            const netDiscovery = commandsExecuted.filter(c => 
-                c.includes('netstat') || c.includes('ss ') || c.includes('lsof') || 
-                c.includes('ip route') || c.includes('arp')
-            );
+          const netDiscovery = commandsExecuted.filter(c => {
+              const normalized = c.toLowerCase();
+              return normalized.includes('netstat') ||
+                  normalized.includes('ss ') ||
+                  normalized.includes('lsof') ||
+                  normalized.includes('ip route') ||
+                  normalized.includes('arp');
+          });
             if (netDiscovery.length > 0) {
                 activityScore += 3;
                 explanations.push({ score: 3, reason: `Network topology discovery: ${netDiscovery[0]}`, dimension: 'Activity', mitre: 'T1049' });

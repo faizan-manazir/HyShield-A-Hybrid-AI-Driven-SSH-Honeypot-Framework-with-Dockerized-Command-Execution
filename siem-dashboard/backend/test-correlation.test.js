@@ -143,3 +143,20 @@ test('Download detection is case-insensitive', () => {
 
     assert.strictEqual(result.summary.downloadCount, 1);
 });
+
+test('Network discovery scoring is case-insensitive', () => {
+    const events = [
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'NETSTAT -an' }
+    ];
+
+    const result = engine.evaluateSessionEvents(events);
+
+    assert.strictEqual(result.summary.reconCount, 1);
+    assert.ok(
+        result.explanations.some(
+            explanation => explanation.reason.includes('Network topology discovery')
+        ),
+        'Expected network topology discovery evidence'
+    );
+});
