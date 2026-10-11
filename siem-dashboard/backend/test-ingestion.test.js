@@ -43,6 +43,34 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         assert.strictEqual(waitingIngestor.stopped, true, 'Closed ingestor should not restart itself');
     });
 
+    await t.test('0c. File disappearing during watcher setup schedules retry', async () => {
+        const disappearingPath = path.join(testDataDir, 'disappearing-cowrie.json');
+        fs.writeFileSync(disappearingPath, '');
+        const originalStatSync = fs.statSync;
+        const disappearingIngestor = createIngestor(disappearingPath);
+        disappearingIngestor.watchRetryIntervalMs = 1000;
+
+        try {
+            // Simulate rotation/removal between existsSync() and statSync().
+            fs.statSync = (candidate, ...args) => {
+                if (candidate === disappearingPath) {
+                    const error = new Error('simulated file disappeared');
+                    error.code = 'ENOENT';
+                    throw error;
+                }
+                return originalStatSync.call(fs, candidate, ...args);
+            };
+
+            disappearingIngestor.watchFile();
+            assert.strictEqual(disappearingIngestor.fd, null, 'No descriptor should remain open');
+            assert.ok(disappearingIngestor.watchRetryTimer, 'A retry should be scheduled after the open race');
+        } finally {
+            fs.statSync = originalStatSync;
+            disappearingIngestor.closeFile();
+            if (fs.existsSync(disappearingPath)) fs.unlinkSync(disappearingPath);
+        }
+    });
+
     await t.test('0b. Watcher errors schedule recovery and can be cancelled on shutdown', async () => {
         const watcherPath = path.join(testDataDir, 'watcher-error-cowrie.json');
         fs.writeFileSync(watcherPath, '');
