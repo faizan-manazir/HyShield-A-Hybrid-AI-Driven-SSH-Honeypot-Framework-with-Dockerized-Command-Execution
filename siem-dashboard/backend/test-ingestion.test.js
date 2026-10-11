@@ -33,6 +33,16 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         await closeDb();
         fs.rmSync(testDataDir, { recursive: true, force: true });
     });
+    await t.test('0. Closing a watcher cancels a pending missing-file retry', async () => {
+        const missingPath = path.join(testDataDir, 'not-created-yet.json');
+        const waitingIngestor = createIngestor(missingPath);
+        waitingIngestor.watchFile();
+        assert.ok(waitingIngestor.watchRetryTimer, 'Missing file should schedule a retry');
+        waitingIngestor.closeFile();
+        assert.strictEqual(waitingIngestor.watchRetryTimer, null, 'Shutdown should clear the retry timer');
+        assert.strictEqual(waitingIngestor.stopped, true, 'Closed ingestor should not restart itself');
+    });
+
     // Setup clean environment
     if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
     if (fs.existsSync(testLogPath)) fs.unlinkSync(testLogPath);
