@@ -93,7 +93,9 @@ class IngestionService {
                         }
                         break;
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.warn(`[Ingestion] Could not inspect rotated-file candidate ${fullPath}:`, e.message);
+                }
             }
             
             if (!fileFound) {
@@ -251,7 +253,9 @@ class IngestionService {
             if (this.fd) {
                 try {
                     rotatedSize = fs.fstatSync(this.fd).size;
-                } catch (e) {}
+                } catch (e) {
+                    console.warn(`[Ingestion] Could not stat rotated file for inode=${rotatedInode}:`, e.message);
+                }
             }
 
             const completed = result.ok && await this.markCheckpointCompleteIfFullyProcessed(rotatedInode, rotatedSize, this.offset);
