@@ -1,0 +1,75 @@
+name: Dependency Remediation Preview
+
+on:
+  push:
+    branches:
+      - "fix/siem-api-hardening"
+    paths:
+      - ".github/workflows/dependency-remediation-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: siem-dashboard/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: siem-dashboard/backend/package-lock.json
+      - run: npm ci
+      - name: Apply compatible patch/minor dependency fixes
+        run: npm audit fix
+      - name: Validate backend
+        run: timeout 120s npm test
+      - name: Export proposed lockfile and audit report
+        if: always()
+        run: |
+          npm audit --json > audit-report.json || true
+          mkdir -p ../../remediation-artifacts/backend
+          cp package.json package-lock.json audit-report.json ../../remediation-artifacts/backend/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-remediation-preview
+          path: remediation-artifacts/backend/
+          if-no-files-found: error
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: siem-dashboard/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: siem-dashboard/frontend/package-lock.json
+      - run: npm ci
+      - name: Upgrade Next.js and matching ESLint config to patched 16.x
+        run: npm install --save-exact next@16.4.0 eslint-config-next@16.4.0
+      - name: Apply compatible patch/minor dependency fixes
+        run: npm audit fix
+      - name: Validate frontend production build
+        run: npm run build
+      - name: Export proposed lockfile and audit report
+        if: always()
+        run: |
+          npm audit --json > audit-report.json || true
+          mkdir -p ../../remediation-artifacts/frontend
+          cp package.json package-lock.json audit-report.json ../../remediation-artifacts/frontend/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-remediation-preview
+          path: remediation-artifacts/frontend/
+          if-no-files-found: error
