@@ -110,7 +110,14 @@ router.get('/events', async (req, res) => {
                     }
                 } catch(err) {}
             }
-            return { ...payload, mitre_context };
+            return {
+                ...payload,
+                id: e.id,
+                session_id: e.session_id,
+                timestamp: e.timestamp ?? payload.timestamp ?? null,
+                eventid: e.eventid ?? payload.eventid ?? null,
+                mitre_context
+            };
         });
         res.json(enrichedEvents);
     } catch (e) { console.error(e); res.status(500).json({ error: 'Internal Server Error' }); }
