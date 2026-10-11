@@ -1,6 +1,8 @@
 const crypto = require('node:crypto');
 
 const TOKEN_TTL_SECONDS = 15 * 60;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILURES = 10;
 
 function safeEqual(a, b) {
     const left = Buffer.from(String(a));
@@ -46,14 +48,34 @@ function verifyToken(token, secret) {
 
 function createAuth({ username, passwordHash, secret }) {
     const configured = Boolean(username && passwordHash && secret && Buffer.byteLength(secret) >= 32);
+    const loginFailures = new Map();
 
     function login(req, res) {
         if (!configured) return res.status(503).json({ error: 'Authentication is not configured' });
+        const nowMs = Date.now();
+        const clientKey = req.ip || req.socket.remoteAddress || 'unknown';
+        const existing = loginFailures.get(clientKey);
+        const attempts = existing && nowMs - existing.windowStart < LOGIN_WINDOW_MS
+            ? existing
+            : { count: 0, windowStart: nowMs };
+        if (attempts.count >= LOGIN_MAX_FAILURES) {
+            res.setHeader('Retry-After', String(Math.ceil((LOGIN_WINDOW_MS - (nowMs - attempts.windowStart)) / 1000)));
+            return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+        }
+
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const validUser = typeof body.username === 'string' && safeEqual(body.username, username);
         const validPassword = verifyPassword(body.password, passwordHash);
-        if (!validUser || !validPassword) return res.status(401).json({ error: 'Invalid credentials' });
-        const now = Math.floor(Date.now() / 1000);
+        if (!validUser || !validPassword) {
+            attempts.count += 1;
+            loginFailures.set(clientKey, attempts);
+            console.warn('[SIEM auth] Login rejected for client', clientKey);
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        loginFailures.delete(clientKey);
+        console.info('[SIEM auth] Administrator login successful');
+        const now = Math.floor(nowMs / 1000);
         const token = signToken({ sub: username, role: 'admin', iat: now, exp: now + TOKEN_TTL_SECONDS }, secret);
         return res.json({ access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, user: { username, role: 'admin' } });
     }
