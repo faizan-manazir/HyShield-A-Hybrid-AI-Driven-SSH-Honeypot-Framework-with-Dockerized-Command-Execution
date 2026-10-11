@@ -43,7 +43,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
     // Init DB
     const db = await migrate();
     
-    let ingestor = new IngestionService(testLogPath);
+    let ingestor = createIngestor(testLogPath);
     await ingestor.init();
 
     await t.test('1. Importing records and session reconstruction', async () => {
@@ -64,7 +64,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         ingestor.closeFile();
         
         // Start a new one to simulate restart
-        ingestor = new IngestionService(testLogPath);
+        ingestor = createIngestor(testLogPath);
         await ingestor.init(); // Will read from checkpoint
         
         // Wait just in case
@@ -237,6 +237,13 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         
         let events = await db.all("SELECT * FROM raw_events WHERE session_id = 's_trunc_col'");
         assert.strictEqual(events.length, 2, 'Should ingest both identical events because they are in different file generations (different inodes)');
+
+        // The path was unlinked and recreated above. Do not carry a file descriptor
+        // or watcher tied to the old inode into the following tests.
+        ingestor.closeFile();
+        ingestor = createIngestor(testLogPath);
+        await ingestor.init();
+        await ingestor.processNewData();
     });
 
     await t.test('12. Alert retained when criteria are no longer met', async () => {
@@ -307,7 +314,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         appendLog(JSON.stringify({ eventid: 'cowrie.login.success', session: 's_recover', timestamp: new Date().toISOString() }));
         
         // Start a brand new ingestion service to simulate crash/restart!
-        const newIngestor = new IngestionService(testLogPath);
+        const newIngestor = createIngestor(testLogPath);
         await newIngestor.init();
         
         await new Promise(r => setTimeout(r, 1000)); // wait for recovery sweep
@@ -357,7 +364,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         fs.writeFileSync(generationLogPath, '');
 
         const testDb = await migrate();
-        const testIngestor = new IngestionService(generationLogPath);
+        const testIngestor = createIngestor(generationLogPath);
         await testIngestor.init();
 
         const identicalPayload = JSON.stringify({ eventid: 'cowrie.session.connect', session: 's_gen', timestamp: '2026-01-01T00:00:00.000Z' });
@@ -372,7 +379,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         await closeDb();
 
         const restartDb = await migrate();
-        const restartIngestor = new IngestionService(generationLogPath);
+        const restartIngestor = createIngestor(generationLogPath);
         await restartIngestor.init();
         assert.strictEqual(restartIngestor.generation, firstCheckpoint.generation, 'Generation must survive restart');
 
@@ -404,7 +411,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES ('888', ?, 0, 77, 0)
         `, [restoredFilePath]);
         
-        const missingRecovery = new IngestionService(recoveryActivePath);
+        const missingRecovery = createIngestor(recoveryActivePath);
         missingRecovery.db = testDb;
         await missingRecovery.recoverRotatedFiles();
         
@@ -429,7 +436,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             return originalRun.apply(this, arguments);
         };
 
-        const failedRecovery = new IngestionService(recoveryActivePath);
+        const failedRecovery = createIngestor(recoveryActivePath);
         failedRecovery.db = testDb;
         await failedRecovery.recoverRotatedFiles();
         testDb.run = originalRun;
@@ -442,7 +449,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
         await closeDb();
         
         const restartDb = await migrate();
-        const ingestor18_restart = new IngestionService(recoveryActivePath);
+        const ingestor18_restart = createIngestor(recoveryActivePath);
         await ingestor18_restart.init();
         await new Promise(r => setTimeout(r, 1000));
         
@@ -473,7 +480,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES (?, ?, ?, 88, 0)
         `, [st.ino.toString(), shorterRotatedPath, st.size + 10]);
 
-        const recovery = new IngestionService(recoveryActivePath);
+        const recovery = createIngestor(recoveryActivePath);
         recovery.db = testDb;
         await recovery.recoverRotatedFiles();
 
@@ -498,7 +505,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES (?, ?, 0, 89, 0)
         `, [st.ino.toString(), renameIncompletePath]);
 
-        const renameIngestor = new IngestionService(renameIncompletePath);
+        const renameIngestor = createIngestor(renameIncompletePath);
         renameIngestor.db = testDb;
         renameIngestor.fd = fs.openSync(renameIncompletePath, 'r');
         renameIngestor.inode = st.ino.toString();
@@ -531,7 +538,7 @@ test('Phase 2: Ingestion & Persistence Tests', async (t) => {
             VALUES (?, ?, 0, 90, 0)
         `, [st.ino.toString(), renameSuccessPath]);
 
-        const renameIngestor = new IngestionService(renameSuccessPath);
+        const renameIngestor = createIngestor(renameSuccessPath);
         renameIngestor.db = testDb;
         renameIngestor.fd = fs.openSync(renameSuccessPath, 'r');
         renameIngestor.inode = st.ino.toString();
