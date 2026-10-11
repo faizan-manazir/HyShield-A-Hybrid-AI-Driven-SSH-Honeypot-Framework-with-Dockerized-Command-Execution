@@ -211,17 +211,7 @@ class IngestionService {
     watchFile() {
         this.stopped = false;
         if (!fs.existsSync(this.logFilePath)) {
-            console.warn(`[Ingestion] File ${this.logFilePath} does not exist yet. Waiting...`);
-            if (this.watchRetryTimer) clearTimeout(this.watchRetryTimer);
-            this.watchRetryTimer = setTimeout(() => {
-                this.watchRetryTimer = null;
-                if (!this.stopped) {
-                    this.watchFile();
-                    // The file may already contain data by the time it appears.
-                    // Catch up immediately instead of waiting for another fs.watch event.
-                    this.processNewData();
-                }
-            }, this.watchRetryIntervalMs);
+            this.scheduleWatchRetry(`File ${this.logFilePath} does not exist yet. Waiting...`);
             return;
         }
         if (this.watchRetryTimer) {
@@ -254,14 +244,42 @@ class IngestionService {
             this.inode = stats.ino.toString();
         }
 
-        this.watcher = fs.watch(this.logFilePath, (eventType) => {
-            if (eventType === 'change') {
+        try {
+            this.watcher = fs.watch(this.logFilePath, (eventType) => {
+                if (eventType === 'change') {
+                    this.processNewData();
+                } else if (eventType === 'rename') {
+                    console.log('[Ingestion] File renamed/rotated. Re-watching...');
+                    this.handleRenameEvent().catch(console.error);
+                }
+            });
+            this.watcher.on('error', (error) => {
+                console.warn(`[Ingestion] File watcher failed for ${this.logFilePath}: ${error.message}`);
+                if (this.watcher) {
+                    this.watcher.close();
+                    this.watcher = null;
+                }
+                this.scheduleWatchRetry('Recovering from file watcher error');
+            });
+        } catch (error) {
+            this.watcher = null;
+            this.scheduleWatchRetry(`Could not watch ${this.logFilePath}: ${error.message}`);
+        }
+    }
+
+    scheduleWatchRetry(reason) {
+        console.warn(`[Ingestion] ${reason}`);
+        if (this.stopped) return;
+        if (this.watchRetryTimer) clearTimeout(this.watchRetryTimer);
+        this.watchRetryTimer = setTimeout(() => {
+            this.watchRetryTimer = null;
+            if (!this.stopped) {
+                this.watchFile();
+                // The file may already contain data by the time watching resumes.
+                // Catch up immediately instead of waiting for another fs.watch event.
                 this.processNewData();
-            } else if (eventType === 'rename') {
-                console.log('[Ingestion] File renamed/rotated. Re-watching...');
-                this.handleRenameEvent().catch(console.error);
             }
-        });
+        }, this.watchRetryIntervalMs);
     }
 
     async handleRenameEvent({ rewatch = true } = {}) {
