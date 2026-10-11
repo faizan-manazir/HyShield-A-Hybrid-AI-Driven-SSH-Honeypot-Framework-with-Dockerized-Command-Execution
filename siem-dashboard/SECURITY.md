@@ -40,7 +40,7 @@ Required server-side environment:
 - `SIEM_ADMIN_PASSWORD_HASH`: scrypt password hash in `scrypt$<salt-hex>$<hash-hex>` format. Never store the plaintext password in source control.
 - `SIEM_AUTH_SECRET`: a randomly generated secret of at least 32 bytes. Keep it in the deployment secret store; do not reuse it across environments.
 
-The login endpoint issues a short-lived bearer token. Protected API routes reject missing/invalid tokens. Mutating HTTP methods require the administrator role. This initial implementation is a single-admin bootstrap, not a complete multi-user/RBAC system; rate limiting, account lifecycle, token revocation, and audit logging still need review before production.
+The login endpoint issues a short-lived bearer token. The browser stores the token in sessionStorage, which is accessible to JavaScript; mitigate XSS and use HTTPS for any remote access. The frontend tracks the token expiry and provides explicit sign-out, but server-side revocation is not implemented. Protected API routes reject missing/invalid tokens. Mutating HTTP methods require the administrator role. This initial implementation is a single-admin bootstrap, not a complete multi-user/RBAC system; the initial login endpoint now applies an in-memory per-client failure limit and logs login outcomes without logging credentials. This limit resets on process restart and is not a substitute for edge-level rate limiting. Account lifecycle, token revocation, and durable audit logging still need review before production.
 
 ## Remote deployment boundary
 
