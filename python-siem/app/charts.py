@@ -11,7 +11,7 @@ RISK_COLORS = {"CRITICAL": "#f43f5e", "HIGH": "#f97316", "MEDIUM": "#f59e0b", "L
 
 
 # ---------------------------------------------------------------- area chart
-def area_chart(points, width=720, height=260, color="#06b6d4"):
+def area_chart(points, width=720, height=210, color="#06b6d4"):
     """points = [(label, number), ...]"""
     left, right, top, bottom = 38, 12, 12, 30
     if not points:
@@ -50,7 +50,7 @@ def area_chart(points, width=720, height=260, color="#06b6d4"):
 
 
 # --------------------------------------------------------------------- donut
-def donut(slices, size=220):
+def donut(slices, size=180):
     """slices = [(name, value, color), ...]"""
     total = sum(v for _, v, _ in slices)
     radius, stroke = 74, 24
