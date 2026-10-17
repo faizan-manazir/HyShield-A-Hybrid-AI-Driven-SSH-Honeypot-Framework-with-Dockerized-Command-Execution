@@ -6,7 +6,7 @@ import tempfile
 from . import config
 
 DEFAULTS = {
-    "alertLevel": 7, "logRetention": 90,
+    "alertLevel": 7, "logRetention": 90, "cowrieLogPath": str(config.LOG_PATH),
     "arEnabled": True, "arCommand": "firewall-drop", "arTimeout": 600,
     "vtEnabled": True, "vtKey": "", "otxEnabled": False,
 }
