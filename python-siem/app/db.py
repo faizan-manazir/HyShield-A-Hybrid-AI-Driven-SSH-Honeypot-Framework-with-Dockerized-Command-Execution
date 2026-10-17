@@ -45,6 +45,15 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     last_offset INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    role          TEXT NOT NULL CHECK (role IN ('super_admin', 'analyst', 'auditor')),
+    active        INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS geo_cache (
     ip   TEXT PRIMARY KEY,
     data TEXT
