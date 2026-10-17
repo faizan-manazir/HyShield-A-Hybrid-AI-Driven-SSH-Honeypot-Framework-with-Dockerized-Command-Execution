@@ -367,3 +367,59 @@ def test_secure_cookie_can_be_forced_for_tls_terminating_proxy(client, monkeypat
     assert "Secure" in cookie
     assert "HttpOnly" in cookie
     assert "SameSite=strict" in cookie
+
+
+def test_retention_removes_expired_events_but_preserves_sessions_with_recent_events(monkeypatch, tmp_path):
+    from app import db
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "retention.db")
+    db.init()
+    conn = db.connect()
+    try:
+        conn.execute("INSERT INTO sessions(session_id, start_time) VALUES (?, ?)",
+                     ("mixed-age", "2020-01-01T00:00:00Z"))
+        conn.execute("INSERT INTO raw_events VALUES (?, ?, ?, ?, ?)",
+                     ("old-event", "mixed-age", "2020-01-01T00:00:00Z", "cowrie.old", "{}"))
+        conn.execute("INSERT INTO raw_events VALUES (?, ?, ?, ?, ?)",
+                     ("new-event", "mixed-age", "2026-10-17T00:00:00Z", "cowrie.new", "{}"))
+        conn.execute("INSERT INTO alerts(id, session_id, severity, title) VALUES (?, ?, ?, ?)",
+                     ("retention-alert", "mixed-age", "LOW", "test"))
+        conn.commit()
+    finally:
+        conn.close()
+    result = db.cleanup_retention(90)
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM raw_events WHERE id='old-event'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM raw_events WHERE id='new-event'").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM sessions WHERE session_id='mixed-age'").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM alerts WHERE id='retention-alert'").fetchone()[0] == 1
+    finally:
+        conn.close()
+    assert result["events_deleted"] == 1
+
+
+def test_ingestor_discards_oversized_json_line(monkeypatch, tmp_path):
+    from app import db
+    from app.ingest import Ingestor, MAX_LINE_BYTES
+    log_path = tmp_path / "oversized.json"
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "oversized.db")
+    db.init()
+    log_path.write_bytes(b"x" * (MAX_LINE_BYTES + 100) + b"\n")
+    ingestor = Ingestor(log_path)
+    assert ingestor.poll() == 0
+    conn = db.connect()
+    try:
+        row = conn.execute("SELECT eventid, payload FROM raw_events").fetchone()
+        assert row["eventid"] == "error.oversized"
+        assert "Oversized log line discarded" in row["payload"]
+    finally:
+        conn.close()
+
+
+def test_generator_can_be_disabled_for_non_development_deployments(client, monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_TEST_GENERATOR", False)
+    assert client.get("/generator").status_code == 404
+    assert client.get("/api/test-generator/status").status_code == 404
+    response = client.post("/api/test-generator/start", json={"sessions": 1})
+    assert response.status_code == 404
+    monkeypatch.setattr(config, "ENABLE_TEST_GENERATOR", True)
