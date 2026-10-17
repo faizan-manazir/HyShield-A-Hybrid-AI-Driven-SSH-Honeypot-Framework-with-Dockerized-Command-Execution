@@ -138,13 +138,13 @@ def list_users():
         conn.close()
 
 
-def set_user_active(user_id, active, acting_user_id):
+def set_user_active(user_id, active, acting_user):
     conn = db.connect()
     try:
         row = conn.execute("SELECT id, role, active FROM users WHERE id = ?", (user_id,)).fetchone()
         if not row:
             return False
-        if int(user_id) == int(acting_user_id) and not active:
+        if int(user_id) == int(acting_user["id"]) and not active:
             raise ValueError("You cannot disable your own account.")
         if row["role"] == "super_admin" and row["active"] and not active:
             count = conn.execute("SELECT COUNT(*) FROM users WHERE role='super_admin' AND active=1").fetchone()[0]
@@ -156,7 +156,7 @@ def set_user_active(user_id, active, acting_user_id):
     finally:
         conn.close()
     if changed_user:
-        record_audit({"id": acting_user_id, "username": "admin"}, "user_enabled" if active else "user_disabled", changed_user["username"])
+        record_audit(acting_user, "user_enabled" if active else "user_disabled", changed_user["username"])
     return True
 
 
@@ -192,6 +192,8 @@ def can_access(role, method, path):
         return True
     if role == "super_admin":
         return True
+    if path.startswith("/audit-logs") or path.startswith("/api/audit-logs"):
+        return role == "auditor"
     if path.startswith("/users") or path.startswith("/api/users"):
         return False
     if path.startswith("/settings") or path.startswith("/api/settings"):
