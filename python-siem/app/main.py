@@ -303,6 +303,17 @@ def api_overview():
             "timeline": [{"time": t, "events": c} for t, c in d["timeline"]]}
 
 
+@app.get("/api/overview/refresh")
+def api_overview_refresh():
+    """Return overview metrics and chart markup from one database read."""
+    data = queries.overview()
+    return {
+        "metrics": data["metrics"],
+        "timeline_svg": charts.area_chart(data["timeline"]),
+        "donut_svg": charts.donut(data["categories"]),
+    }
+
+
 @app.get("/api/overview/charts")
 def api_overview_charts():
     data = queries.overview()
