@@ -1003,3 +1003,8 @@ input::placeholder, textarea::placeholder { color: #8fa2b9; opacity: 1; }
   .overview-map-visual { height:160px; }
   .overview-map-visual .worldmap { max-height:160px; }
 }
+
+
+/* Avoid double entrance/fade transitions that can make page navigation flicker. */
+.wrap, .wrap.page-leaving { animation:none !important; }
+.motion-ready .reveal-on-scroll { opacity:1 !important; transform:none !important; transition:none !important; }
