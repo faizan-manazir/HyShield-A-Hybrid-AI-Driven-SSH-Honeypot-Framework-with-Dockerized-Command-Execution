@@ -38,7 +38,15 @@ COWRIE_LOG_PATH=/home/cowrie/cowrie/var/log/cowrie/cowrie.json python run.py
 $env:COWRIE_LOG_PATH="C:\path\to\cowrie.json"; python run.py
 ```
 
-New lines appear in the dashboard within 2 seconds. Log rotation and restarts are handled.
+New log lines are ingested by the background reader; dashboard page refresh is a separate mechanism.
+
+**Dashboard auto-refresh**
+
+- Auto-refreshable dashboard pages poll for updated content every **5 seconds**.
+- The Event Explorer polls every 5 seconds when its Auto-refresh option is enabled.
+- The browser uses background requests rather than a full-page reload.
+- The JavaScript refresh interval has a **5-second minimum**. This is a UI polling interval, not a guarantee that every new log record will be visible within five seconds; ingestion and processing timing can also affect when data appears.
+- To verify the setting, inspect the page's `data-refresh` attribute and the refresh logic in `app/static/app.js`.
 
 **Generate random test events**
 
@@ -85,6 +93,17 @@ app/static/style.css   the look
 tools/simulate.py      fake attacker generator
 tests/                 tests  ->  python -m pytest
 ```
+
+## Run tests
+
+From the `python-siem/` directory, install the requirements and run:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest -q
+```
+
+The tests cover application routes and behaviors, but passing tests do not replace checking the dashboard against a real Cowrie log. Run the suite after code changes and review the actual test output.
 
 ## Settings (environment variables)
 
