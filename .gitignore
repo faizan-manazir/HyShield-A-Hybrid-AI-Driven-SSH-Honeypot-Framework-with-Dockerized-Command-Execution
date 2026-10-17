@@ -1,10 +1,21 @@
-# Python cache
+# Python caches and virtual environments
 __pycache__/
 *.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Runtime Cowrie logs
+# Local secrets and environment configuration
+.env
+.env.*
+!.env.example
+
+# Runtime logs and evidence files
+*.log
 backend/cowrie.json
-siem-dashboard/backend/cowrie.json
 
 # Database files
 *.db
@@ -14,13 +25,14 @@ siem-dashboard/backend/cowrie.json
 *.sqlite3
 *.sqlite3-*
 
-# Empty local fixture
-siem-dashboard/backend/test_data/cowrie.json
-
-# Node.js dependencies
-node_modules/
-
-# HyShield Python SIEM runtime secrets and configuration
+# Python SIEM runtime secrets and configuration
 python-siem/data/auth_secret
 python-siem/data/settings.json
 python-siem/data/.settings-*.tmp
+
+# Node dependencies (for any local tooling, not a supported dashboard)
+node_modules/
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
