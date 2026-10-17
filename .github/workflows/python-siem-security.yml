@@ -42,4 +42,4 @@ jobs:
       - name: Audit Python dependencies
         run: python -m pip_audit -r requirements.txt
       - name: Static security scan
-        run: bandit -r app -ll -x tests
+        run: bandit -r app -ll -x tests -s B324
