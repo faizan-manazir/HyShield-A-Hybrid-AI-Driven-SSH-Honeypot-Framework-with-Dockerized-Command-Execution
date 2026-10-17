@@ -468,9 +468,21 @@ async def save_settings(request: Request):
             new_path = Path(raw_path).expanduser().resolve(strict=True)
             if not new_path.is_file() or not os.access(new_path, os.R_OK):
                 raise ValueError("Choose an existing, readable Cowrie JSON log file.")
+            # Do not let a path setting turn the ingestor into a generic local-file
+            # reader: require a Cowrie event on the first non-empty line.
+            with new_path.open("rb") as stream:
+                first_line = stream.readline(256 * 1024 + 1)
+            if not first_line or len(first_line) > 256 * 1024:
+                raise ValueError("The file must begin with a valid Cowrie JSON event.")
+            try:
+                first_event = __import__("json").loads(first_line)
+            except (ValueError, UnicodeDecodeError):
+                raise ValueError("The file must begin with a valid Cowrie JSON event.")
+            if not isinstance(first_event, dict) or not str(first_event.get("eventid", "")).startswith("cowrie."):
+                raise ValueError("The file must begin with a valid Cowrie JSON event.")
         except (OSError, RuntimeError, ValueError):
             return RedirectResponse(
-                "/settings?tab=source&error=" + quote("The path must point to an existing, readable file on the SIEM server."),
+                "/settings?tab=source&error=" + quote("Choose an existing, readable file that begins with a valid Cowrie JSON event."),
                 status_code=303,
             )
         generator = getattr(app.state, "event_generator", None)
