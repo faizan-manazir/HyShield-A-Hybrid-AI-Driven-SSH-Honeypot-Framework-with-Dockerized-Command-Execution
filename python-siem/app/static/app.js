@@ -52,47 +52,7 @@
     });
   }
 
-  // Accessible chart interactions: rich hover/focus tooltips and drill-down from donut slices.
-  let chartTooltip = document.querySelector('.chart-tooltip');
-  if (!chartTooltip) {
-    chartTooltip = document.createElement('div');
-    chartTooltip.className = 'chart-tooltip';
-    chartTooltip.setAttribute('role', 'status');
-    chartTooltip.setAttribute('aria-live', 'polite');
-    document.body.appendChild(chartTooltip);
-  }
-  const hideChartTooltip = () => chartTooltip.classList.remove('is-visible');
-  const showChartTooltip = (target, x, y) => {
-    const message = target && target.getAttribute('data-chart-tip');
-    if (!message) return;
-    chartTooltip.textContent = message;
-    chartTooltip.classList.add('is-visible');
-    const left = Math.min(Math.max(12, x + 14), window.innerWidth - chartTooltip.offsetWidth - 12);
-    const top = Math.min(Math.max(12, y + 14), window.innerHeight - chartTooltip.offsetHeight - 12);
-    chartTooltip.style.left = `${left}px`;
-    chartTooltip.style.top = `${top}px`;
-  };
-  document.addEventListener('pointerover', (event) => {
-    const target = event.target.closest('[data-chart-tip]');
-    if (target) showChartTooltip(target, event.clientX, event.clientY);
-  });
-  document.addEventListener('pointermove', (event) => {
-    const target = event.target.closest('[data-chart-tip]');
-    if (target && chartTooltip.classList.contains('is-visible')) showChartTooltip(target, event.clientX, event.clientY);
-  });
-  document.addEventListener('pointerout', (event) => {
-    if (event.target.closest('[data-chart-tip]') && !event.relatedTarget?.closest?.('[data-chart-tip]')) hideChartTooltip();
-  });
-  document.addEventListener('focusin', (event) => {
-    const target = event.target.closest('[data-chart-tip]');
-    if (target) {
-      const rect = target.getBoundingClientRect();
-      showChartTooltip(target, rect.left + rect.width / 2, rect.top + rect.height / 2);
-    }
-  });
-  document.addEventListener('focusout', (event) => {
-    if (event.target.closest('[data-chart-tip]')) hideChartTooltip();
-  });
+  // Donut slices remain clickable; chart hover tooltips are intentionally disabled.
   document.addEventListener('click', (event) => {
     const target = event.target.closest('.donut-slice[data-href]');
     if (target) window.location.href = target.getAttribute('data-href');
@@ -102,12 +62,6 @@
     if (target && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       window.location.href = target.getAttribute('data-href');
-    }
-    const point = event.target.closest('.chart-point[data-chart-tip]');
-    if (point && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      const rect = point.getBoundingClientRect();
-      showChartTooltip(point, rect.left + rect.width / 2, rect.top + rect.height / 2);
     }
   });
 
