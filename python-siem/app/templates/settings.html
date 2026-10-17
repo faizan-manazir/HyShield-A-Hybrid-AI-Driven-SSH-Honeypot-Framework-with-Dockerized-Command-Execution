@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Settings - HyShield<script src="/static/settings.js?v=1" defer></script>
-{% endblock %}
+{% block title %}Settings - HyShield{% endblock %}
 {% macro toggle(name, on, label, hint) %}
   <div class="field"><label class="check">
     <input type="hidden" name="{{ name }}" value="0">
@@ -81,4 +80,5 @@
   {% endif %}
   </div>
 </div>
+<script src="/static/settings.js?v=1" defer></script>
 {% endblock %}
