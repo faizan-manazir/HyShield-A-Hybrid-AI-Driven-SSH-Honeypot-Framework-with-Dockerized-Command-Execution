@@ -175,6 +175,13 @@ The script sets a fixed `PYTHONPATH`, calls scripts using absolute `/home/faizan
 
 See [Python SIEM detailed documentation](../python-siem/docs/PROJECT_DOCUMENTATION.md) for subsystem-level detail.
 
+### Current SIEM behavior notes
+
+- The refreshable dashboard pages poll every **5 seconds**; Event Explorer does so when Auto-refresh is enabled. This is browser polling, not a guarantee of end-to-end ingestion latency.
+- Event Explorer applies its search and category filters in SQL before applying the result limit, avoiding missed older matches caused by filtering only a limited recent-event subset.
+- Session timestamp upserts preserve an existing non-null start/end time when an incoming Cowrie record omits that timestamp.
+- To validate the Python SIEM after changes, run `python -m pytest -q` from `python-siem/` and review the actual test output.
+
 ## 8. Dashboard routes
 
 | Route | Purpose |
