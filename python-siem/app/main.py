@@ -245,8 +245,24 @@ async def purge(request: Request):
 
 # ======================================================================= API
 def _is_local_request(request: Request) -> bool:
-    host = request.client.host if request.client else ""
-    return host in ("127.0.0.1", "::1", "localhost", "testclient")
+    """Allow local development and same-origin browser calls through forwarded dev ports.
+
+    Codespaces and similar development proxies do not present the browser as a loopback
+    client. For those requests, require an explicit same-origin Origin header; the
+    middleware above rejects cross-origin state-changing requests.
+    """
+    client_host = request.client.host if request.client else ""
+    if client_host in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return True
+    origin = request.headers.get("origin")
+    host = request.headers.get("host", "")
+    if not origin or not host:
+        return False
+    try:
+        parsed = urlparse(origin)
+        return parsed.netloc.lower() == host.lower() and parsed.scheme in ("http", "https")
+    except (TypeError, ValueError):
+        return False
 
 
 @app.get("/api/test-generator/status")
