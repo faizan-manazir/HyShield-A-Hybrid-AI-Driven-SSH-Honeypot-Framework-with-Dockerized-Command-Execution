@@ -130,6 +130,19 @@ def test_cross_origin_post_is_blocked(client):
     assert client.get("/api/overview/metrics").json()["metrics"]["totalEvents"] > 0
 
 
+def test_loopback_origin_alias_is_allowed_but_external_origin_is_not(client):
+    # Browser access via localhost and 127.0.0.1 should work for local development.
+    r = client.post("/setup", data={}, headers={
+        "origin": "http://localhost:8000", "host": "127.0.0.1:8000"
+    }, follow_redirects=False)
+    assert r.status_code != 403
+    # Different non-loopback hosts must still be blocked.
+    r = client.post("/settings/purge", data={"confirm": "PURGE"}, headers={
+        "origin": "http://attacker.example:8000", "host": "127.0.0.1:8000"
+    }, follow_redirects=False)
+    assert r.status_code == 403
+
+
 def test_csp_allows_only_same_origin_bundled_scripts(client):
     response = client.get("/")
     assert "script-src 'self'" in response.headers["content-security-policy"]
