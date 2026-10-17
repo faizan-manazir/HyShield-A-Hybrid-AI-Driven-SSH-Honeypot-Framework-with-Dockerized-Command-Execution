@@ -81,7 +81,6 @@ def _restrict_file(path):
 
 def connect() -> sqlite3.Connection:
     config.DATA.mkdir(parents=True, exist_ok=True)
-    existed = config.DB_PATH.exists()
     conn = sqlite3.connect(config.DB_PATH, timeout=30)
     _restrict_file(config.DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -97,21 +96,34 @@ def cleanup_retention(days: int, audit_days: int = 365) -> dict:
     conn = connect()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        expired = conn.execute("SELECT session_id FROM sessions WHERE start_time IS NOT NULL AND datetime(start_time) < datetime('now', ?)", (f"-{days} days",)).fetchall()
+        events = conn.execute(
+            "DELETE FROM raw_events WHERE timestamp IS NOT NULL AND datetime(timestamp) < datetime('now', ?)",
+            (f"-{days} days",)
+        ).rowcount
+        # Only remove a session once no retained event refers to it.
+        expired = conn.execute(
+            """SELECT session_id FROM sessions
+               WHERE start_time IS NOT NULL
+                 AND datetime(start_time) < datetime('now', ?)
+                 AND NOT EXISTS (SELECT 1 FROM raw_events WHERE raw_events.session_id=sessions.session_id)""",
+            (f"-{days} days",)
+        ).fetchall()
         session_ids = [row["session_id"] for row in expired]
         if session_ids:
             conn.executemany("DELETE FROM alerts WHERE session_id=?", [(sid,) for sid in session_ids])
             conn.executemany("DELETE FROM sessions WHERE session_id=?", [(sid,) for sid in session_ids])
-        events = conn.execute("DELETE FROM raw_events WHERE timestamp IS NOT NULL AND datetime(timestamp) < datetime('now', ?)", (f"-{days} days",)).rowcount
-        audit = conn.execute("DELETE FROM audit_logs WHERE datetime(created_at) < datetime('now', ?)", (f"-{audit_days} days",)).rowcount
+        audit = conn.execute(
+            "DELETE FROM audit_logs WHERE datetime(created_at) < datetime('now', ?)",
+            (f"-{audit_days} days",)
+        ).rowcount
         conn.commit()
-        return {"events_deleted": max(0, events), "sessions_deleted": len(session_ids), "audit_entries_deleted": max(0, audit)}
+        return {"events_deleted": max(0, events), "sessions_deleted": len(session_ids),
+                "audit_entries_deleted": max(0, audit)}
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
-
 
 def init() -> None:
     conn = connect()
