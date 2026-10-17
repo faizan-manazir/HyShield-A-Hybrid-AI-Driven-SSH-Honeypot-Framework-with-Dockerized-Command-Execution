@@ -101,7 +101,7 @@ def overview_page(request: Request):
     data = queries.overview()
     geo_data = queries.geo_overview()
     land = charts.land_path(APP_DIR / "static" / "countries-110m.json")
-    return render(request, "overview.html", "overview", refresh=10, d=data,
+    return render(request, "overview.html", "overview", refresh=5, d=data,
                   timeline_svg=charts.area_chart(data["timeline"]),
                   donut_svg=charts.donut(data["categories"]),
                   map_svg=charts.world_map(land, geo_data["attackNodes"], geo_data["honeypot"]),
@@ -116,14 +116,14 @@ def overview_page(request: Request):
 
 @app.get("/live")
 def live_page(request: Request):
-    return render(request, "live.html", "live", refresh=10, events=queries.events(100))
+    return render(request, "live.html", "live", refresh=5, events=queries.events(100))
 
 
 @app.get("/geomap")
 def geomap_page(request: Request):
     data = queries.geo_overview()
     land = charts.land_path(APP_DIR / "static" / "countries-110m.json")
-    return render(request, "geomap.html", "geomap", refresh=10, d=data,
+    return render(request, "geomap.html", "geomap", refresh=5, d=data,
                   map_svg=charts.world_map(land, data["attackNodes"], data["honeypot"]))
 
 
@@ -135,7 +135,7 @@ def mitre_page(request: Request):
 @app.get("/alerts")
 def alerts_page(request: Request, severity: str = "ALL"):
     severity = severity.upper() if severity.upper() in ("CRITICAL", "HIGH", "MEDIUM", "LOW") else "ALL"
-    return render(request, "alerts.html", "alerts", refresh=10, severity=severity,
+    return render(request, "alerts.html", "alerts", refresh=5, severity=severity,
                   alerts=queries.alerts(severity))
 
 
@@ -162,7 +162,7 @@ async def close_alert(alert_id: str, request: Request):
 @app.get("/explorer")
 def explorer_page(request: Request, q: str = "", category: str = "ALL", auto: int = 0):
     category = category.upper() if category.upper() in ("AUTH", "CMD", "SESS", "INFO") else "ALL"
-    return render(request, "explorer.html", "explorer", refresh=10 if auto else 0, q=q[:200],
+    return render(request, "explorer.html", "explorer", refresh=5 if auto else 0, q=q[:200],
                   category=category, auto=auto, events=queries.events(500, q[:200], category))
 
 
@@ -177,7 +177,7 @@ def actors_page(request: Request, sort: str = "EVENTS"):
 @app.get("/sessions")
 def sessions_page(request: Request, sort: str = "LATEST"):
     sort = sort if sort in ("LATEST", "THREAT", "EVENTS") else "LATEST"
-    return render(request, "sessions.html", "sessions", refresh=10, sort=sort,
+    return render(request, "sessions.html", "sessions", refresh=5, sort=sort,
                   sessions=queries.sessions(sort))
 
 
