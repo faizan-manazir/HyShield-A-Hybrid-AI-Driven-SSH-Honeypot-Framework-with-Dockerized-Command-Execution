@@ -267,6 +267,22 @@ async def create_user_page(request: Request):
     return RedirectResponse("/users?saved=1", status_code=303)
 
 
+@app.post("/users/{user_id}/update")
+async def update_user_page(user_id: int, request: Request):
+    form = await request.form()
+    try:
+        changed = auth.update_user(
+            user_id, form.get("username", ""), form.get("role", ""),
+            form.get("password", ""), request.state.user
+        )
+    except ValueError as exc:
+        from urllib.parse import quote
+        return RedirectResponse("/users?error=" + quote(str(exc)), status_code=303)
+    except Exception:
+        return RedirectResponse("/users?error=Could%20not%20update%20account.%20Username%20may%20already%20exist.", status_code=303)
+    return RedirectResponse("/users?saved=1" if changed else "/users?error=User%20not%20found.", status_code=303)
+
+
 @app.post("/users/{user_id}/disable")
 def disable_user(user_id: int, request: Request):
     try:
