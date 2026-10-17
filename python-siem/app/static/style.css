@@ -627,8 +627,6 @@ tbody tr { transition: background-color var(--motion-fast) ease; }
 .donut-slice { cursor: pointer; pointer-events: stroke; transition: stroke-width 220ms ease, opacity 220ms ease, filter 220ms ease; }
 .donut-slice:hover, .donut-slice:focus { stroke-width: 31; filter: drop-shadow(0 0 5px rgba(103,230,243,.24)); outline: none; }
 .donut-slice:focus-visible, .chart-point:focus-visible { stroke: #e7fbff; stroke-width: 3; }
-.chart-tooltip { position: fixed; z-index: 1000; max-width: min(300px, calc(100vw - 24px)); padding: 9px 12px; border: 1px solid rgba(103,230,243,.3); border-radius: 8px; background: rgba(7,15,26,.96); color: #e5f6ff; font-size: 12px; line-height: 1.45; box-shadow: 0 10px 32px rgba(0,0,0,.35); pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity 150ms ease, transform 150ms ease; }
-.chart-tooltip.is-visible { opacity: 1; transform: translateY(0); }
 .dashboard-note { display:flex; align-items:center; justify-content:space-between; gap:22px; margin-top:4px; }
 .dashboard-note h3 { margin:6px 0; }
 .dashboard-note p { margin:0; max-width:650px; }
