@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs - HyShield{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Administrative Audit Log</h1><p class="sub">Recent authentication and user-administration events.</p></div></div>
+<div class="card pad"><div class="table-wrap"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead><tbody>
+{% for entry in logs %}<tr><td>{{ entry.created_at or '-' }}</td><td>{{ entry.actor_name or 'system' }}</td><td>{{ entry.action }}</td><td>{{ entry.target or '-' }}</td></tr>
+{% else %}<tr><td colspan="4">No audit entries recorded yet.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}
