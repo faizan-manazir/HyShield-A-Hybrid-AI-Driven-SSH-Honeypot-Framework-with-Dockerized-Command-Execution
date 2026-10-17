@@ -31,18 +31,27 @@
       {{ nav('actors', '/actors', '👥', 'Actors') }}
       {{ nav('sessions', '/sessions', '⌨', 'Sessions') }}
       <div class="nav-title">System</div>
+      {% if current_user and current_user.role in ('super_admin', 'analyst') %}
       {{ nav('generator', '/generator', '⚗', 'Test Event Generator') }}
+      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <div class="sensor-mark"><span class="sensor-dot"></span><div><b>HONEYPOT SIEM</b><small>THREAT MONITORING</small></div></div>
-      <div class="bottom">{{ nav('settings', '/settings', '⚙', 'System Settings') }}</div>
+      <div class="bottom">
+        {% if current_user and current_user.role == 'super_admin' %}
+          {{ nav('users', '/users', '👤', 'User Management') }}
+          {{ nav('settings', '/settings', '⚙', 'System Settings') }}
+        {% endif %}
+      </div>
       <div class="sidebar-version">HYSHIELD <span>•</span> DEFENSIVE MONITORING</div>
     </div>
   </aside>
   <main>
     <header class="topbar">
       <div class="topbar-context"><span class="topbar-kicker">SECURITY OPERATIONS</span><span class="topbar-slash">/</span><span class="topbar-current">HyShield SIEM</span></div>
-      <div class="topbar-actions"><span class="workspace-pill"><span class="workspace-dot"></span> COWRIE TELEMETRY</span><a class="topbar-search" href="/explorer"><span class="search-glyph">⌕</span> Search telemetry <kbd>/</kbd></a></div>
+      <div class="topbar-actions"><span class="workspace-pill"><span class="workspace-dot"></span> COWRIE TELEMETRY</span><a class="topbar-search" href="/explorer"><span class="search-glyph">⌕</span> Search telemetry <kbd>/</kbd></a>
+        {% if current_user %}<span class="workspace-pill">{{ current_user.username }} · {{ role_labels.get(current_user.role, current_user.role) }}</span><form method="post" action="/logout"><button class="btn" type="submit">Sign out</button></form>{% endif %}
+      </div>
     </header>
     <div class="wrap">{% block content %}{% endblock %}</div>
     <footer class="app-footer"><span>HYSHIELD SIEM <span class="footer-sep">/</span> SECURITY MONITORING</span><span>Threat investigation workspace</span></footer>
