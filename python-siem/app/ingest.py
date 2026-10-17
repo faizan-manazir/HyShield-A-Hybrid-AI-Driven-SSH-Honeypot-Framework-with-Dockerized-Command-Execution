@@ -15,6 +15,9 @@ from . import correlation, db
 
 log = logging.getLogger("hyshield.ingest")
 
+MAX_BATCH_BYTES = 1024 * 1024
+MAX_LINE_BYTES = 256 * 1024
+
 
 class Ingestor(threading.Thread):
     def __init__(self, log_path, interval=2.0):
@@ -65,11 +68,35 @@ class Ingestor(threading.Thread):
                     return 0
                 with open(self.log_path, "rb") as f:
                     f.seek(offset)
-                    data = f.read(st.st_size - offset)
-                end = data.rfind(b"\n")            # ignore a half-written last line
-                if end == -1:
-                    return 0
-                chunk = data[: end + 1]
+                    data = f.read(min(st.st_size - offset, MAX_BATCH_BYTES))
+                    end = data.rfind(b"\n")  # ignore a half-written last line
+                    if end == -1:
+                        # Keep ordinary partial writes, but stream-skip a pathological
+                        # line rather than buffering it without limit forever.
+                        if st.st_size - offset <= MAX_LINE_BYTES:
+                            return 0
+                        f.seek(offset)
+                        skipped = 0
+                        while True:
+                            block = f.read(64 * 1024)
+                            if not block:
+                                return 0
+                            newline = block.find(b"\n")
+                            if newline >= 0:
+                                skipped += newline + 1
+                                break
+                            skipped += len(block)
+                        event_id = hashlib.sha256(f"{self.log_path}|{inode}|{offset}|oversized".encode()).hexdigest()
+                        conn.execute("INSERT OR IGNORE INTO raw_events VALUES (?,?,?,?,?)",
+                                     (event_id, None, None, "error.oversized", json.dumps({"error": "Oversized log line discarded"})))
+                        conn.execute(
+                            "INSERT INTO checkpoints (inode, file_path, last_offset) VALUES (?,?,?) "
+                            "ON CONFLICT(inode) DO UPDATE SET last_offset=excluded.last_offset, file_path=excluded.file_path",
+                            (inode, self.log_path, offset + skipped))
+                        conn.commit()
+                        self.stats["errors"] += 1
+                        return 0
+                    chunk = data[:end + 1]
                 return self._store(conn, chunk, inode, offset)
             finally:
                 conn.close()
@@ -80,6 +107,12 @@ class Ingestor(threading.Thread):
             for raw in chunk.split(b"\n")[:-1]:
                 line_offset = position
                 position += len(raw) + 1
+                if len(raw) > MAX_LINE_BYTES:
+                    event_id = hashlib.sha256(f"{self.log_path}|{inode}|{line_offset}|oversized".encode()).hexdigest()
+                    conn.execute("INSERT OR IGNORE INTO raw_events VALUES (?,?,?,?,?)",
+                                 (event_id, None, None, "error.oversized", json.dumps({"error": "Oversized log line discarded"})))
+                    self.stats["errors"] += 1
+                    continue
                 line = raw.decode("utf-8", errors="replace").strip()
                 if not line:
                     continue
