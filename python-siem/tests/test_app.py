@@ -183,7 +183,7 @@ def test_geo_map_is_interactive_and_displays_coordinate_metadata(client):
     assert 'id="geo-detail-lat"' in page.text
     # Marker coordinate attributes exist when the configured log contains public,
     # geolocatable sources. The page must still render correctly for an empty map.
-    if "No public source coordinates available yet." not in page.text:
+    if "No public source coordinates are available yet." not in page.text:
         assert 'data-lat="' in page.text and 'data-lng="' in page.text
     assert "not a device’s GPS position" in page.text
 
