@@ -44,7 +44,7 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     live = client.get("/live")
     assert live.status_code == 200
     assert "Recent telemetry" in live.text
-    assert 'data-refresh="10"' in live.text
+    assert 'data-refresh="5"' in live.text
     for path in ("/fim", "/vulnerabilities", "/api/fim"):
         assert client.get(path).status_code == 404, path
     sidebar = dashboard.text
@@ -129,7 +129,7 @@ def test_csp_allows_only_same_origin_bundled_scripts(client):
     assert "script-src 'none'" not in response.headers["content-security-policy"]
     assert '<script src="/static/app.js?v=12" defer></script>' in response.text
     assert 'http-equiv="refresh"' not in response.text
-    assert 'data-refresh="10"' in response.text
+    assert 'data-refresh="5"' in response.text
 
 
 def test_api_key_is_never_echoed(client):
