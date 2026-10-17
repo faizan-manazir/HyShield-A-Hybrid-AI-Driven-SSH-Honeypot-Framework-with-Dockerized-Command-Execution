@@ -186,9 +186,13 @@ def _session_row(s):
 
 
 def sessions(sort="LATEST", limit=500):
-    order = {"THREAT": "threat_score DESC, start_time DESC",
-             "EVENTS": "event_count DESC, start_time DESC"}.get(sort, "start_time DESC")
-    return [_session_row(s) for s in _rows(f"SELECT * FROM sessions ORDER BY {order} LIMIT ?", (limit,))]
+    statements = {
+        "LATEST": "SELECT * FROM sessions ORDER BY start_time DESC LIMIT ?",
+        "THREAT": "SELECT * FROM sessions ORDER BY threat_score DESC, start_time DESC LIMIT ?",
+        "EVENTS": "SELECT * FROM sessions ORDER BY event_count DESC, start_time DESC LIMIT ?",
+    }
+    statement = statements.get(sort, statements["LATEST"])
+    return [_session_row(s) for s in _rows(statement, (limit,))]
 
 
 # Cowrie event -> stage name shown in the "attack story"
