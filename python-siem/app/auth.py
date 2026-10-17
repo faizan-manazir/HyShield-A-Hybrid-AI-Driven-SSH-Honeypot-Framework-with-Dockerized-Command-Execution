@@ -1,0 +1,173 @@
+"""Small, database-backed authentication helpers for the HyShield SIEM."""
+import base64
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import time
+from pathlib import Path
+
+from . import config, db
+
+ROLES = ("super_admin", "analyst", "auditor")
+ROLE_LABELS = {
+    "super_admin": "Super Admin",
+    "analyst": "Security Analyst",
+    "auditor": "Read-Only Auditor",
+}
+COOKIE_NAME = "hyshield_session"
+SESSION_SECONDS = 8 * 60 * 60
+
+
+def _secret():
+    configured = os.environ.get("HYSHIELD_AUTH_SECRET")
+    if configured:
+        return configured.encode()
+    path = config.DATA / "auth_secret"
+    try:
+        secret = path.read_bytes()
+    except FileNotFoundError:
+        secret = secrets.token_bytes(48)
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(secret)
+        except FileExistsError:
+            secret = path.read_bytes()
+    return secret
+
+
+def hash_password(password):
+    if not isinstance(password, str) or len(password) < 12:
+        raise ValueError("Password must be at least 12 characters.")
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+    return "scrypt$" + base64.urlsafe_b64encode(salt).decode() + "$" + base64.urlsafe_b64encode(digest).decode()
+
+
+def verify_password(password, stored):
+    try:
+        algorithm, salt_text, digest_text = stored.split("$", 2)
+        if algorithm != "scrypt":
+            return False
+        salt = base64.urlsafe_b64decode(salt_text.encode())
+        expected = base64.urlsafe_b64decode(digest_text.encode())
+        actual = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError, UnicodeError):
+        return False
+
+
+def create_user(username, password, role):
+    username = str(username or "").strip()
+    if not 3 <= len(username) <= 64 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for ch in username):
+        raise ValueError("Username must be 3–64 characters and use only letters, numbers, dot, underscore, or hyphen.")
+    if role not in ROLES:
+        raise ValueError("Choose a valid role.")
+    password_hash = hash_password(password)
+    conn = db.connect()
+    try:
+        conn.execute("INSERT INTO users (username, password_hash, role, active, created_at) VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)",
+                     (username, password_hash, role))
+        conn.commit()
+        row = conn.execute("SELECT id, username, role, active, created_at FROM users WHERE username = ?", (username,)).fetchone()
+        return dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def user_count():
+    conn = db.connect()
+    try:
+        return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def authenticate(username, password):
+    conn = db.connect()
+    try:
+        row = conn.execute("SELECT * FROM users WHERE username = ? AND active = 1", (str(username or "").strip(),)).fetchone()
+    finally:
+        conn.close()
+    if not row or not verify_password(password or "", row["password_hash"]):
+        return None
+    return {"id": row["id"], "username": row["username"], "role": row["role"]}
+
+
+def list_users():
+    conn = db.connect()
+    try:
+        return [dict(row) for row in conn.execute(
+            "SELECT id, username, role, active, created_at FROM users ORDER BY username COLLATE NOCASE"
+        ).fetchall()]
+    finally:
+        conn.close()
+
+
+def set_user_active(user_id, active, acting_user_id):
+    conn = db.connect()
+    try:
+        row = conn.execute("SELECT id, role, active FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            return False
+        if int(user_id) == int(acting_user_id) and not active:
+            raise ValueError("You cannot disable your own account.")
+        if row["role"] == "super_admin" and row["active"] and not active:
+            count = conn.execute("SELECT COUNT(*) FROM users WHERE role='super_admin' AND active=1").fetchone()[0]
+            if count <= 1:
+                raise ValueError("At least one active Super Admin must remain.")
+        conn.execute("UPDATE users SET active = ? WHERE id = ?", (1 if active else 0, user_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def make_session(user):
+    payload = {"uid": user["id"], "username": user["username"], "role": user["role"], "exp": int(time.time()) + SESSION_SECONDS}
+    encoded = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
+    signature = hmac.new(_secret(), encoded.encode(), hashlib.sha256).hexdigest()
+    return encoded + "." + signature
+
+
+def read_session(token):
+    try:
+        encoded, signature = token.rsplit(".", 1)
+        expected = hmac.new(_secret(), encoded.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+        payload = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+        if int(payload.get("exp", 0)) < int(time.time()):
+            return None
+        conn = db.connect()
+        try:
+            row = conn.execute("SELECT id, username, role FROM users WHERE id=? AND username=? AND role=? AND active=1",
+                               (payload["uid"], payload["username"], payload["role"])).fetchone()
+        finally:
+            conn.close()
+        return dict(row) if row else None
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def can_access(role, method, path):
+    if path.startswith("/static/") or path in ("/login", "/setup", "/logout", "/api/health"):
+        return True
+    if role == "super_admin":
+        return True
+    if path.startswith("/users") or path.startswith("/api/users"):
+        return False
+    if path.startswith("/settings") or path.startswith("/api/settings"):
+        return False
+    if path == "/settings/purge":
+        return False
+    if path.startswith("/api/test-generator") or path == "/generator":
+        return role == "analyst"
+    if method not in ("GET", "HEAD", "OPTIONS"):
+        return role == "analyst" and path.startswith("/alerts/") and path.endswith("/close")
+    return role in ("analyst", "auditor")
