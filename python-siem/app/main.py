@@ -22,7 +22,6 @@ from fastapi.templating import Jinja2Templates
 
 from . import auth, charts, config, db, queries, settings as cfg
 from .ingest import Ingestor
-from .test_generator import RandomEventGenerator
 
 APP_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=APP_DIR / "templates")   # auto-escapes all {{ values }}
@@ -110,7 +109,6 @@ async def lifespan(app):
     configured_log_path = Path(cfg.load().get("cowrieLogPath", str(config.LOG_PATH))).expanduser()
     app.state.ingestor = Ingestor(configured_log_path, config.POLL_SECONDS)
     app.state.ingestor.start()
-    app.state.event_generator = RandomEventGenerator(configured_log_path)
     logging.getLogger("hyshield").info("Tailing %s", configured_log_path)
     yield
     app.state.ingestor.stop()
@@ -433,12 +431,6 @@ def session_page(request: Request, session_id: str):
     return render(request, "session_detail.html", "sessions", s=detail)
 
 
-@app.get("/generator")
-def generator_page(request: Request):
-    if not config.ENABLE_TEST_GENERATOR:
-        return PlainTextResponse("Test event generation is disabled in this deployment.", status_code=404)
-    return render(request, "generator.html", "generator", generator=app.state.event_generator.status())
-
 
 # ------------------------------------------------------------------ settings
 def _number(value, default, low, high):
@@ -500,20 +492,12 @@ async def save_settings(request: Request):
                 "/settings?tab=source&error=" + quote("Choose an existing, readable file that begins with a valid Cowrie JSON event."),
                 status_code=303,
             )
-        generator = getattr(app.state, "event_generator", None)
-        if generator and generator.status().get("running"):
-            return RedirectResponse(
-                "/settings?tab=source&error=" + quote("Stop the test event generator before changing the log source."),
-                status_code=303,
-            )
         s["cowrieLogPath"] = str(new_path)
     cfg.save(s)
     if tab == "source":
         # Switch the tailer immediately. Path changes are serialized with polling,
         # and checkpoints from a different path are not reused.
         app.state.ingestor.set_log_path(new_path)
-        if getattr(app.state, "event_generator", None):
-            app.state.event_generator.log_path = new_path
     
     auth.record_audit(request.state.user, "settings_updated", str(tab or "global"))
     return RedirectResponse(f"/settings?tab={tab if tab in ('global', 'response', 'intel', 'source') else 'global'}&saved=1",
@@ -550,37 +534,6 @@ def _is_local_request(request: Request) -> bool:
     except (TypeError, ValueError):
         return False
 
-
-@app.get("/api/test-generator/status")
-def api_test_generator_status():
-    if not config.ENABLE_TEST_GENERATOR:
-        return JSONResponse({"error": "Test event generation is disabled."}, status_code=404)
-    return app.state.event_generator.status()
-
-
-@app.post("/api/test-generator/start")
-async def api_test_generator_start(request: Request):
-    if not config.ENABLE_TEST_GENERATOR:
-        return JSONResponse({"error": "Test event generation is disabled."}, status_code=404)
-    if not _is_local_request(request):
-        return JSONResponse({"error": "The test generator is available only from the local machine."}, status_code=403)
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    sessions = _number(body.get("sessions", 10), 10, 1, 100) if isinstance(body, dict) else 10
-    speed = body.get("speed", "normal") if isinstance(body, dict) else "normal"
-    started, status = app.state.event_generator.start(sessions, speed)
-    return JSONResponse({**status, "started": started}, status_code=200 if started else 409)
-
-
-@app.post("/api/test-generator/stop")
-def api_test_generator_stop(request: Request):
-    if not config.ENABLE_TEST_GENERATOR:
-        return JSONResponse({"error": "Test event generation is disabled."}, status_code=404)
-    if not _is_local_request(request):
-        return JSONResponse({"error": "The test generator is available only from the local machine."}, status_code=403)
-    return app.state.event_generator.stop()
 
 
 @app.get("/api/health")
