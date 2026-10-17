@@ -931,3 +931,62 @@ input::placeholder, textarea::placeholder { color: #8fa2b9; opacity: 1; }
   .overview-side-stack { grid-column:auto; }
   .overview-map-visual { height:160px; } .overview-map-visual .worldmap { max-height:160px; }
 }
+
+
+/* Scale the reference overview up for comfortable reading while keeping charts restrained. */
+.overview-heading { margin-bottom:20px; }
+.overview-heading h1 { font-size:26px; }
+.overview-heading .sub { font-size:12px; }
+.overview-heading .eyebrow { font-size:10px; }
+.overview-kpi-grid { gap:12px; margin-bottom:12px; }
+.overview-kpi { padding:16px 16px 13px; }
+.kpi-icon { width:22px; height:22px; font-size:14px; }
+.kpi-label { font-size:9px; letter-spacing:.1em; }
+.kpi-tag { font-size:8px; }
+.kpi-number { font-size:30px; margin-top:10px; }
+.kpi-foot { font-size:9px; }
+.sparkline { width:96px; height:28px; }
+.overview-main-grid { gap:12px; margin-bottom:12px; grid-template-columns:minmax(0,1.1fr) minmax(0,1.22fr) minmax(245px,.83fr); }
+.overview-main-grid > .card, .overview-side-stack > .card { padding:15px; }
+.overview-side-stack { gap:12px; }
+.overview-card-heading { margin-bottom:12px; gap:10px; }
+.overview-card-heading h3 { font-size:13px; }
+.overview-card-heading p { font-size:9px; }
+.overview-card-heading > a { font-size:9px; }
+.overview-card-heading .eyebrow { font-size:8px; }
+.overview-map-stat { font-size:8px; }
+.overview-country-list { gap:7px; margin-bottom:9px; }
+.overview-country-row { font-size:9px; gap:4px 9px; }
+.country-track { height:4px; }
+.overview-map-visual { height:150px; }
+.overview-map-visual .worldmap { max-height:150px; }
+.overview-map-legend { font-size:9px; margin-top:9px; }
+.overview-priority-item { padding:11px 0; gap:8px; }
+.priority-title { font-size:10px; }
+.priority-copy p { font-size:9px; line-height:1.5; }
+.priority-meta { font-size:8px; }
+.overview-severity { font-size:8px; padding:3px 6px; }
+.overview-footer-link { font-size:8px; padding-top:11px; }
+.overview-distribution-body { grid-template-columns:minmax(95px,1fr) minmax(78px,.85fr); gap:8px; }
+.overview-donut-chart .donut { max-width:138px; max-height:138px; }
+.overview-donut-chart .donut-total { font-size:26px; }
+.overview-distribution-legend { gap:9px; }
+.overview-distribution-legend div { font-size:9px; gap:6px; }
+.overview-distribution-legend b { font-size:9px; }
+.overview-status-list > div { padding:9px 0; font-size:9px; }
+.overview-status-list b { font-size:8px; }
+.overview-bottom-grid { gap:12px; }
+.overview-bottom-panel { padding:15px; }
+.overview-bottom-row { padding:9px 0; font-size:9px; }
+.overview-bottom-row .muted { font-size:9px; }
+.overview-bottom-row .badge { font-size:8px; }
+@media (max-width:1120px) {
+  .overview-main-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+}
+@media (max-width:720px) {
+  .overview-heading h1 { font-size:24px; }
+  .overview-kpi { padding:13px; }
+  .overview-main-grid > .card, .overview-side-stack > .card { padding:13px; }
+  .overview-map-visual { height:160px; }
+  .overview-map-visual .worldmap { max-height:160px; }
+}
