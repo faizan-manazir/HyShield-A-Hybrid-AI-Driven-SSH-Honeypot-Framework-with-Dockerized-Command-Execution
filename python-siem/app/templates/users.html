@@ -16,7 +16,14 @@
 <div class="card pad" style="margin-top:20px"><h3>Existing accounts</h3>
   <div class="table-wrap"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody>
   {% for user in users %}<tr><td>{{ user.username }}</td><td>{{ role_labels.get(user.role, user.role) }}</td><td>{{ 'Active' if user.active else 'Disabled' }}</td><td>{{ user.created_at or '-' }}</td><td>
-    {% if user.active %}<form method="post" action="/users/{{ user.id }}/disable"><button class="btn danger" type="submit" {% if user.role == "super_admin" %}disabled title="Super Admin accounts cannot be disabled"{% elif current_user and current_user.id == user.id %}disabled title="You cannot disable your own account"{% endif %}>Disable</button></form>
+    {% if user.active %}
+      {% if user.role == "super_admin" %}
+        <span class="muted" title="Super Admin accounts cannot be disabled">Protected</span>
+      {% elif current_user and current_user.id == user.id %}
+        <span class="muted" title="You cannot disable your own account">Current account</span>
+      {% else %}
+        <form method="post" action="/users/{{ user.id }}/disable"><button class="btn danger" type="submit">Disable</button></form>
+      {% endif %}
     {% else %}<form method="post" action="/users/{{ user.id }}/enable"><button class="btn" type="submit">Enable</button></form>{% endif %}
   </td></tr>
   <tr><td colspan="5">
