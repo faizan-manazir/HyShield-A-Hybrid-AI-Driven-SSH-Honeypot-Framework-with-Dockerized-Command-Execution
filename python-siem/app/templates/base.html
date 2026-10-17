@@ -40,7 +40,10 @@
       <div class="bottom">
         {% if current_user and current_user.role == 'super_admin' %}
           {{ nav('users', '/users', '👤', 'User Management') }}
+          {{ nav('audit-logs', '/audit-logs', '📋', 'Audit Logs') }}
           {{ nav('settings', '/settings', '⚙', 'System Settings') }}
+        {% elif current_user and current_user.role == 'auditor' %}
+          {{ nav('audit-logs', '/audit-logs', '📋', 'Audit Logs') }}
         {% endif %}
       </div>
       <div class="sidebar-version">HYSHIELD <span>•</span> DEFENSIVE MONITORING</div>
