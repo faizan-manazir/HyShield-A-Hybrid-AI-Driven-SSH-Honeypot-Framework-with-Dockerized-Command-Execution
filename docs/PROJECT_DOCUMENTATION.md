@@ -154,6 +154,16 @@ The script sets a fixed `PYTHONPATH`, calls scripts using absolute `/home/faizan
 7. FastAPI renders pages and JSON responses.
 8. Analyst reviews an alert and inspects associated session evidence.
 
+## SIEM accounts and roles
+
+The Python SIEM requires a user account before protected routes are available. On a new database, create the initial Super Admin at `/setup`, then sign in at `/login`. The setup route is disabled once a user exists.
+
+- **Super Admin:** full SIEM access, settings and account management, destructive actions, and audit logs.
+- **Security Analyst:** read/investigate telemetry, close alerts, and use the test-event generator; no user management, settings, or purge.
+- **Read-Only Auditor:** read-only dashboard and investigation access plus administrative audit-log viewing.
+
+Passwords are stored as scrypt hashes. Signed HttpOnly session cookies expire after eight hours. Keep `python-siem/data/auth_secret` private and persistent, or configure `HYSHIELD_AUTH_SECRET`. Authorization is checked on the backend, not only by hiding navigation links. Audit/authentication events are stored in SQLite and available at `/audit-logs` to Super Admins and Auditors.
+
 ## 7. Python SIEM components
 
 | Path | Responsibility |
