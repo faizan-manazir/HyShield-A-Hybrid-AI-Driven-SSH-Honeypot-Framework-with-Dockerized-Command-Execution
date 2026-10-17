@@ -195,8 +195,13 @@ class Ingestor(threading.Thread):
         with self.lock:
             conn = db.connect()
             try:
-                for table in ("raw_events", "sessions", "alerts", "checkpoints"):
-                    conn.execute(f"DELETE FROM {table}")
+                for statement in (
+                    "DELETE FROM raw_events",
+                    "DELETE FROM sessions",
+                    "DELETE FROM alerts",
+                    "DELETE FROM checkpoints",
+                ):
+                    conn.execute(statement)
                 if os.path.exists(self.log_path):
                     st = os.stat(self.log_path)
                     conn.execute("INSERT INTO checkpoints VALUES (?,?,?)",
