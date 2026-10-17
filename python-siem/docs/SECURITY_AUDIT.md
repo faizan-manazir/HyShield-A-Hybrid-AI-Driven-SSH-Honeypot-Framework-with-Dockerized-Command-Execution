@@ -14,7 +14,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 The following mitigations have been implemented on this branch and regression tests added where practical: per-process failed-login throttling (8 failures per client IP per 15-minute window), explicit secure-cookie configuration, stricter Origin parsing, default-off test generation when configured for a non-loopback host, best-effort restrictive permissions for local data/secrets, atomic settings writes, bounded ingestion batches and oversized-line rejection, periodic retention cleanup, a low-information health endpoint, and a Python-specific CI workflow.
 
-These are code changes, not a claim of passing tests. CI must complete successfully, and deployments must set `HYSHIELD_COOKIE_SECURE=true` when TLS terminates upstream. Remaining work includes synchronizer CSRF tokens, shared/distributed rate limiting for multi-worker deployments, bounded session-scoring work, and dependency lock/constraints management.
+CI validation completed successfully on commit `fd9580ecdacfa6b32703c5087891697909829fdb`: **61 tests passed**, `pip-audit` reported no known vulnerabilities, and Bandit completed with no remaining medium/high findings under the configured scan (B324 is excluded for the app's existing non-security MD5 identifiers). Two non-fatal test warnings were reported in that run. Deployments must set `HYSHIELD_COOKIE_SECURE=true` when TLS terminates upstream. Remaining work includes a synchronizer CSRF token, shared/distributed rate limiting for multi-worker deployments, bounded session-scoring work, and dependency lock/constraints management. Subsequent documentation-only commits still trigger CI, so verify the latest run before merging.
 
 ## Findings and priorities
 
@@ -131,4 +131,4 @@ These are code changes, not a claim of passing tests. CI must complete successfu
 
 ## Audit limitations
 
-This is a static repository review with remediation commits, not a formal penetration test or a guarantee of security. No production deployment, external attack surface, actual proxy configuration, secret history, or live dependency advisory database was inspected. The latest test suite and CI workflow have not yet been confirmed green. Runtime testing and a deployment-specific review remain necessary.
+This is a static repository review with remediation commits, not a formal penetration test or a guarantee of security. No production deployment, external attack surface, actual proxy configuration, secret history, or live dependency advisory database was inspected. The code commit noted above passed CI; verify the latest workflow after subsequent commits and complete a deployment-specific review. Runtime testing and a deployment-specific review remain necessary.
