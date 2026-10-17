@@ -8,6 +8,17 @@ No Node, no npm, no TypeScript, and no frontend build step. A small amount of pl
 It reads the Cowrie `cowrie.json` log, scores every attacker session (0-100), raises alerts, maps them to
 MITRE ATT&CK and shows everything in a web dashboard.
 
+## Authentication and roles
+
+On the first run, open the dashboard URL and create the initial **Super Admin** account at `/setup`. This setup route is available only while no user accounts exist. After setup, sign in at `/login`. User accounts are stored in the SIEM SQLite database; passwords are stored as salted scrypt hashes, and sessions use a signed, HttpOnly cookie with an eight-hour expiry. The signing key is generated in `data/auth_secret` unless `HYSHIELD_AUTH_SECRET` is supplied through the environment. Keep the data directory private and back up the signing key securely; rotating it invalidates active sessions.
+
+The Super Admin can create and disable accounts under **System → User Management**:
+- **Super Admin:** system settings, account management, dashboard, investigations, and administrative actions.
+- **Security Analyst:** dashboard, event/session investigation, alert closure, and synthetic test-event generator; no user management, settings changes, or database purge.
+- **Read-Only Auditor:** read-only investigation views and audit log; cannot change alerts, settings, accounts, or generator state.
+
+Backend route checks enforce these roles; hiding navigation links is only a usability aid. Use HTTPS when accessing through a trusted reverse proxy. Do not expose the app publicly without reviewing deployment controls. The initial setup must be completed before normal dashboard/API use.
+
 ## Run it
 
 You need Python 3.10 or newer.
