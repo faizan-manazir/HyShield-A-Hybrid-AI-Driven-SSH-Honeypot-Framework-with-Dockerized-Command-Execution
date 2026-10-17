@@ -49,6 +49,26 @@ def area_chart(points, width=720, height=210, color="#06b6d4"):
     return "".join(out)
 
 
+# ---------------------------------------------------------------- sparkline
+def sparkline(points, color="#60a5fa", width=112, height=28):
+    """Small decorative trend line from the same recent-event buckets as the main timeline."""
+    values = [float(value) for _, value in points]
+    if not values:
+        return f'<svg viewBox="0 0 {width} {height}" class="sparkline" aria-hidden="true"></svg>'
+    low, high = min(values), max(values)
+    span = high - low or 1
+    inset = 2
+    coords = []
+    for i, value in enumerate(values):
+        x = inset + (width - inset * 2) * i / max(1, len(values) - 1)
+        y = height - inset - (height - inset * 2) * (value - low) / span
+        coords.append(f"{x:.1f},{y:.1f}")
+    return (f'<svg viewBox="0 0 {width} {height}" class="sparkline" aria-hidden="true">'
+            f'<polyline points="{" ".join(coords)}" fill="none" stroke="{color}" '
+            f'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'
+            f'</svg>')
+
+
 # --------------------------------------------------------------------- donut
 def donut(slices, size=180):
     """slices = [(name, value, color), ...]"""
