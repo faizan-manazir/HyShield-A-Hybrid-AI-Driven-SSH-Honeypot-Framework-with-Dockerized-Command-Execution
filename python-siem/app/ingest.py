@@ -42,6 +42,11 @@ class Ingestor(threading.Thread):
     def stop(self):
         self.stop_flag.set()
 
+    def set_log_path(self, log_path):
+        """Switch the tailed source atomically with respect to poll/purge."""
+        with self.lock:
+            self.log_path = str(log_path)
+
     # ---- one pass -------------------------------------------------------
     def poll(self):
         """Read new log lines and periodically enforce configured telemetry retention."""
@@ -60,8 +65,10 @@ class Ingestor(threading.Thread):
             inode = str(st.st_ino)
             conn = db.connect()
             try:
-                row = conn.execute("SELECT last_offset FROM checkpoints WHERE inode=?", (inode,)).fetchone()
-                offset = row["last_offset"] if row else 0
+                row = conn.execute("SELECT last_offset, file_path FROM checkpoints WHERE inode=?", (inode,)).fetchone()
+                # Inodes can be reused and can collide across different filesystems.
+                # Never carry an offset from a different configured path.
+                offset = row["last_offset"] if row and row["file_path"] == self.log_path else 0
                 if st.st_size < offset:            # file was emptied/truncated -> start over
                     offset = 0
                 if st.st_size == offset:
