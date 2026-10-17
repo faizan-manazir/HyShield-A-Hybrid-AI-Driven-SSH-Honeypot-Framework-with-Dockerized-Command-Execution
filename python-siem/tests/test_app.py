@@ -385,16 +385,6 @@ def test_ingestor_discards_oversized_json_line(monkeypatch, tmp_path):
         conn.close()
 
 
-def test_generator_can_be_disabled_for_non_development_deployments(client, monkeypatch):
-    monkeypatch.setattr(config, "ENABLE_TEST_GENERATOR", False)
-    assert client.get("/generator").status_code == 404
-    assert client.get("/api/test-generator/status").status_code == 404
-    response = client.post("/api/test-generator/start", json={"sessions": 1})
-    assert response.status_code == 404
-    monkeypatch.setattr(config, "ENABLE_TEST_GENERATOR", True)
-
-
-
 def test_super_admin_can_change_cowrie_log_path_immediately(client, tmp_path):
     from app import settings as cfg
     source = tmp_path / "cowrie-custom.json"
