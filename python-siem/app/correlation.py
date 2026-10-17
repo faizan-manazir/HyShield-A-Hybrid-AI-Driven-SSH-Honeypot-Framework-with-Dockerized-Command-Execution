@@ -8,7 +8,7 @@ Every session gets 4 scores, each 0-25, added up to a 0-100 Threat Score:
     Weaponization - downloads, running payloads, crypto miners
     Intent        - hiding tracks, creating accounts, moving sideways
 
-Risk level:  0-19 LOW | 20-49 MEDIUM | 50-74 HIGH | 75-100 CRITICAL
+Risk level:  0-19 LOW | 20-39 MEDIUM | 40-69 HIGH | 70-100 CRITICAL
 """
 import re
 from datetime import datetime
@@ -22,8 +22,8 @@ CREDENTIAL_FILES = ["/etc/shadow", "/etc/passwd", "/etc/sudoers",
                     ".ssh/authorized_keys", ".ssh/id_rsa", ".bash_history",
                     "/root/.ssh", ".pgpass", ".my.cnf", "/etc/krb5.conf"]
 DOWNLOAD_TOOLS = ["wget", "curl", "ftp", "scp", "tftp", "git clone"]
-EXECUTION = ["chmod +x", "chmod 777", "chmod 755", "./", "sh ", "bash ",
-             "python", "perl", "ruby", "nohup", "| bash", "| sh"]
+EXECUTION = ["./", "sh ", "bash ", "python ", "python3 ", "perl ", "ruby ",
+             "nohup ", "| bash", "| sh"]
 EVASION = ["history -c", "unset HISTFILE", "rm -rf /var/log", "rm -f /var/log",
            'echo "" >', "kill -9", "pkill", "iptables -F", "setenforce 0",
            "systemctl stop"]
@@ -86,9 +86,9 @@ def _parse_time(text):
 def risk_level(score):
     if score < 20:
         return "LOW"
-    if score < 50:
+    if score < 40:
         return "MEDIUM"
-    if score < 75:
+    if score < 70:
         return "HIGH"
     return "CRITICAL"
 
@@ -255,7 +255,7 @@ def evaluate_session(events):
             alert("HIGH", "Lateral Movement Detected", f"Pivot attempt to adjacent system: {pivots[0]}", "T1021")
         if persist:
             explain(5, f"Scheduled persistence mechanism: {persist[0]}", "Intent", "T1053")
-    if len(commands) > 4 and duration < 10:
+    if len(commands) > 4 and 0 <= duration < 10:
         intent += 5
         explain(5, f"High-velocity automated session: {len(commands)} commands in {duration:.1f}s (scripted attack)", "Intent")
     if duration > 300 and len(commands) > 8:
@@ -265,6 +265,14 @@ def evaluate_session(events):
 
     # ---- Final score ---------------------------------------------------
     score = min(100, access + activity + weapon + intent)
+    # Critical aggregate risk requires corroborated high-impact behavior.
+    # Event-level alert severity remains separate from the session-wide score.
+    confirmed_chain = chain and logged_in
+    confirmed_miner = bool(miners and logged_in)
+    confirmed_persistence = bool(any(_ACCOUNT_CMD.search(c) for c in commands) and logged_in)
+    if confirmed_chain or confirmed_miner or confirmed_persistence:
+        score = max(score, 70)
+    score = min(100, score)
     mitre = [{"id": t, "name": MITRE[t][0], "tactic": MITRE[t][1]} for t in _unique(mitre_hits)]
     return {
         "threatScore": score,

