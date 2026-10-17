@@ -19,17 +19,11 @@ SETTINGS_PATH = DATA / "settings.json"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
 
-# Synthetic event generation is enabled by default only for loopback development.
-ENABLE_TEST_GENERATOR = os.environ.get(
-    "HYSHIELD_ENABLE_TEST_GENERATOR", "true" if HOST in ("127.0.0.1", "::1", "localhost") else "false"
-).lower() in ("1", "true", "yes")
 # Set true whenever HTTPS terminates in front of the ASGI app.
 COOKIE_SECURE = os.environ.get("HYSHIELD_COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "2"))
 
-# DEMO_MODE=true gives private/loopback IPs a fake (but stable) country so the map has dots.
-DEMO_MODE = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")
 # HYSHIELD_GEO=off stops the app from calling the HTTPS IP geolocation provider.
 GEO_LOOKUP = os.environ.get("HYSHIELD_GEO", "on").lower() != "off"
 
