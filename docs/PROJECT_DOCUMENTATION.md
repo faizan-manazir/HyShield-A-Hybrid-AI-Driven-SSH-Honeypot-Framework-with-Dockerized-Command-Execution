@@ -344,7 +344,7 @@ Before deployment beyond a local lab:
 - [ ] Do not rely on the command blocklist as the primary security boundary.
 - [ ] Keep API keys and active passwords out of source control, logs, and screenshots.
 - [ ] Replace hard-coded host paths with configuration.
-- [ ] Add authentication/authorization before remote SIEM access; the SIEM README notes that no login is currently provided.
+- [ ] Validate login, logout, Super Admin/Analyst/Auditor permissions, account disablement, and audit logging before remote SIEM access.
 - [ ] Use an authenticated VPN/reverse proxy for remote access.
 - [ ] Restrict database/log permissions and define retention/backups.
 - [ ] Disable external geolocation if data transfer is not approved.
