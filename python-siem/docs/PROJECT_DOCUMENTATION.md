@@ -14,7 +14,7 @@ It is designed for research, education, honeypot monitoring, and controlled lab 
 - Store raw events, sessions, alerts, ingestion checkpoints, settings, and geolocation cache data.
 - Correlate session behavior into a score from 0 to 100 and a risk band.
 - Raise rule-based alerts and attach selected MITRE ATT&CK technique mappings.
-- Provide overview metrics, live event viewing, alert triage, event search, actor summaries, session evidence, map visualizations, and settings.
+- Provide overview metrics, live event viewing, alert triage, event search, actor summaries, session evidence, map visualizations, settings, and downloadable standalone HTML security reports.
 - Generate synthetic Cowrie-shaped events locally for testing and demos.
 - Expose JSON endpoints and FastAPI's interactive API documentation.
 - Use SQLite without requiring a separate database server or frontend build system.
@@ -83,7 +83,7 @@ The SIEM ingestion pipeline is distinct from the parent project's interactive SS
 | Path | Purpose |
 |---|---|
 | `run.py` | Starts the application through Uvicorn. |
-| `app/main.py` | FastAPI app lifecycle, middleware, page routes, JSON endpoints, and request handling. |
+| `app/main.py` | FastAPI app lifecycle, middleware, page routes, JSON endpoints, HTML report export, and request handling. |
 | `app/config.py` | Environment variables, paths, server options, and geolocation/map settings. |
 | `app/db.py` | SQLite connection helpers, schema creation, and JSON helpers. |
 | `app/ingest.py` | Background JSON-lines reader, checkpointing, and log-change handling. |
@@ -105,7 +105,7 @@ Use the current files in the branch as the source of truth when code changes. Th
 
 ## Authentication and role-based access control
 
-The SIEM requires an account before protected pages and APIs can be used. On a fresh database, visit `/setup` to create the first Super Admin. Once at least one account exists, setup redirects to login and cannot create another initial administrator. Sign in at `/login`; use **Sign out** to clear the session cookie.
+The SIEM provides an authenticated `/reports/export.html` endpoint that downloads a standalone HTML report with current metrics, recent alerts, source actors, sessions, and event records. The report is generated on demand, HTML-escapes log-derived content, and is sent as an attachment with caching disabled. Exported files may contain sensitive telemetry and should be stored securely.\n\nThe SIEM requires an account before protected pages and APIs can be used. On a fresh database, visit `/setup` to create the first Super Admin. Once at least one account exists, setup redirects to login and cannot create another initial administrator. Sign in at `/login`; use **Sign out** to clear the session cookie.
 
 Passwords are stored as salted scrypt hashes, not plaintext. Session cookies are signed, HttpOnly, SameSite=Strict, and expire after eight hours. The signing secret is read from `HYSHIELD_AUTH_SECRET` or generated in `data/auth_secret`; protect this file and the data directory. The generated key must persist across restarts or users will be logged out. Set a stable secret through the environment when using multiple app instances.
 
