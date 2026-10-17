@@ -931,3 +931,41 @@ input::placeholder, textarea::placeholder { color: #8fa2b9; opacity: 1; }
   .overview-side-stack { grid-column:auto; }
   .overview-map-visual { height:160px; } .overview-map-visual .worldmap { max-height:160px; }
 }
+
+
+/* Readability pass: enlarge overview text without changing the dashboard's overall scale. */
+.overview-heading h1 { font-size:26px; }
+.overview-heading .sub { font-size:12px; line-height:1.55; }
+.overview-heading .eyebrow { font-size:10px; }
+.kpi-label { font-size:9px; }
+.kpi-tag { font-size:8px; }
+.kpi-foot { font-size:10px; line-height:1.4; }
+.overview-card-heading h3 { font-size:13px; }
+.overview-card-heading p { font-size:10px; line-height:1.45; }
+.overview-card-heading > a { font-size:10px; }
+.overview-card-heading .eyebrow { font-size:9px; }
+.overview-map-stat { font-size:9px; }
+.overview-country-row { font-size:10px; }
+.overview-map-legend { font-size:10px; }
+.overview-priority-item { padding:10px 0; }
+.priority-title { font-size:11px; line-height:1.45; }
+.priority-copy p { font-size:10px; line-height:1.5; }
+.priority-meta { font-size:9px; }
+.overview-severity { font-size:8px; }
+.overview-footer-link { font-size:9px; line-height:1.5; }
+.overview-distribution-legend div { font-size:10px; }
+.overview-distribution-legend b { font-size:10px; }
+.overview-status-list > div { font-size:10px; line-height:1.45; }
+.overview-status-list b { font-size:9px; }
+.overview-bottom-panel .overview-card-heading h3 { font-size:13px; }
+.overview-bottom-panel .overview-card-heading p { font-size:10px; }
+.overview-bottom-row { font-size:10px; line-height:1.45; }
+.overview-bottom-row .muted { font-size:10px; }
+.overview-bottom-row .badge { font-size:8px; }
+.overview-empty { font-size:10px; line-height:1.5; }
+@media (max-width:720px) {
+  .overview-heading h1 { font-size:24px; }
+  .overview-heading .sub { font-size:12px; }
+  .kpi-foot, .overview-country-row, .overview-card-heading p,
+  .priority-copy p, .overview-status-list > div, .overview-bottom-row { font-size:10px; }
+}
