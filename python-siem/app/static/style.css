@@ -658,30 +658,6 @@ tbody tr { transition: background-color var(--motion-fast) ease; }
 }
 
 
-/* Synthetic test-event generator */
-.eyebrow { color: var(--cyan-soft); font-size: 10px; font-weight: 800; letter-spacing: .16em; margin-bottom: 8px; }
-.metric-label { color: var(--dim); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.metric-value { font-size: 28px; font-weight: 650; letter-spacing: -.03em; margin: 8px 0 4px; }
-.generator-running { color: #34d399; }
-.generator-form { display: grid; gap: 10px; }
-.generator-form label { color: #b9c8d9; font-size: 11px; font-weight: 700; letter-spacing: .04em; margin-top: 5px; }
-.generator-form select { width: 100%; background: #0d1725; border: 1px solid rgba(148,172,204,.2); color: var(--text); padding: 11px 12px; border-radius: 8px; font: inherit; }
-.generator-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.generator-actions .btn { padding: 11px 16px; }
-.btn:disabled { opacity: .42; cursor: not-allowed; transform: none; }
-.generator-message { border: 1px solid rgba(103,230,243,.12); background: rgba(103,230,243,.045); border-radius: 8px; padding: 12px 14px; color: #a8c7d6; font-size: 12px; min-height: 44px; }
-.progress-track { height: 6px; overflow: hidden; border-radius: 99px; background: rgba(148,172,204,.12); }
-.progress-value { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #0891b2, #34d399); transition: width .65s ease; }
-.generator-checklist { display: grid; gap: 18px; }
-.generator-checklist > div { display: flex; align-items: flex-start; gap: 12px; }
-.generator-check { display: grid; place-items: center; flex: 0 0 23px; height: 23px; border-radius: 7px; color: #67e8f9; background: rgba(6,182,212,.1); border: 1px solid rgba(6,182,212,.18); font-weight: 800; }
-.generator-checklist b { display: block; color: #dce8f5; font-size: 12px; }
-.generator-checklist p { color: var(--dim); margin: 3px 0 0; font-size: 12px; }
-.generator-note { color: #b4c1d2; font-size: 12px; border-color: rgba(245,158,11,.2); background: rgba(245,158,11,.045); }
-@media (max-width: 800px) { .generator-stats { grid-template-columns: 1fr; } .g2 { grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { .progress-value { transition: none; } }
-
-
 /* Readability pass: increase body copy contrast and soften overly small labels. */
 :root { --text: #edf3fb; --muted: #b4c3d5; --dim: #91a3ba; }
 html, body { font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.62; color: #edf3fb; }
