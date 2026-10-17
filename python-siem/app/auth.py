@@ -82,7 +82,7 @@ def list_audit_logs(limit=200):
         conn.close()
 
 
-def create_user(username, password, role):
+def create_user(username, password, role, actor=None):
     username = str(username or "").strip()
     if not 3 <= len(username) <= 64 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for ch in username):
         raise ValueError("Username must be 3–64 characters and use only letters, numbers, dot, underscore, or hyphen.")
@@ -102,7 +102,7 @@ def create_user(username, password, role):
         raise
     finally:
         conn.close()
-    record_audit(None, "user_created", f"{created['username']} ({created['role']})")
+    record_audit(actor, "user_created", f"{created['username']} ({created['role']})")
     return created
 
 
