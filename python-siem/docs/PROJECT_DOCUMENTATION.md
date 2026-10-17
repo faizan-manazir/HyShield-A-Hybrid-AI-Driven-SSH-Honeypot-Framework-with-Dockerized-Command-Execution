@@ -26,7 +26,7 @@ It is designed for research, education, honeypot monitoring, and controlled lab 
 - Rule-based scoring can produce false positives and false negatives.
 - MITRE ATT&CK mappings are behavior labels, not attribution.
 - Synthetic events are not real incidents and must not be mixed with evidence.
-- The app README notes that the dashboard has no login. Do not expose it directly to the Internet without authentication and a deployment security review.
+- The SIEM now has account authentication and role-based access control. Do not expose it directly to the Internet without a deployment security review, trusted HTTPS ingress, and network restrictions.
 
 ## 2. Architecture at a glance
 
@@ -439,7 +439,7 @@ The current SIEM includes several useful controls described in its code/README:
 - The VirusTotal key is not returned by the public settings representation.
 - The default host is `127.0.0.1`.
 
-These safeguards are not a complete deployment security review. The README states that there is no login. Before remote or shared deployment:
+These safeguards are not a complete deployment security review. Authentication and role-based access control are implemented, but that alone is not a complete deployment security review. Before remote or shared deployment:
 - Put the dashboard behind an authenticated VPN or reverse proxy.
 - Restrict network access and use TLS at the trusted ingress.
 - Protect the database, log files, and settings file with filesystem permissions.
