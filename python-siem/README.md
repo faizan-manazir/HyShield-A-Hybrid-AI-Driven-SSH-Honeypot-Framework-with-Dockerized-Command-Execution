@@ -23,7 +23,7 @@ python run.py
 For Windows PowerShell, use these commands instead of the activation line above:
 ```powershell
 py -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python run.py
 ```
