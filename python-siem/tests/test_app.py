@@ -2,9 +2,10 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from app import charts, config
-from app.main import app
+from app.main import app, _is_local_request
 
 
 @pytest.fixture(scope="module")
@@ -152,6 +153,23 @@ def test_purge_requires_confirmation(client):
     client.post("/settings/purge", data={"confirm": "PURGE"})
     assert client.get("/api/overview/metrics").json()["metrics"]["totalEvents"] == 0
     assert app.state.ingestor.poll() == 0                    # old lines are not re-read
+
+
+def test_generator_allows_same_origin_forwarded_dev_port_requests():
+    def make_request(origin):
+        return Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/api/test-generator/start",
+            "headers": [(b"host", b"codespace.example"), (b"origin", origin.encode())],
+            "client": ("10.0.0.8", 12345),
+            "server": ("codespace.example", 443),
+            "scheme": "https",
+            "query_string": b"",
+        })
+
+    assert _is_local_request(make_request("https://codespace.example")) is True
+    assert _is_local_request(make_request("https://attacker.example")) is False
 
 
 def test_generator_page_and_status_api(client):
