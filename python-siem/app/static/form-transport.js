@@ -13,6 +13,8 @@
     const action = new URL(form.action || window.location.href, window.location.href);
     if (action.origin !== window.location.origin) return;
     if (action.pathname.startsWith('/api/')) return;
+    // Alert resolution has a dedicated JSON/AJAX handler in app.js.
+    if (/^\/alerts\/[^/]+\/close$/.test(action.pathname)) return;
 
     event.preventDefault();
     if (!form.reportValidity()) return;
