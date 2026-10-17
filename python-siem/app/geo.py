@@ -4,7 +4,7 @@ IP -> country / city / coordinates.
 Public IPs are looked up through ipwho.is over HTTPS in a background thread and cached in
 SQLite, so pages never wait for the internet. Until the answer arrives the IP
 shows as "Resolving...". Private IPs (192.168.x.x, 127.0.0.1 ...) have no
-location; with DEMO_MODE=true they get a stable fake one so the map has dots.
+location and are displayed as private-network sources.
 """
 import ipaddress
 import json
@@ -12,18 +12,8 @@ import queue
 import threading
 import time
 import urllib.request
-import zlib
 
 from . import config, db
-
-SIMULATED_ORIGINS = [
-    ("RU", "Russian Federation", "Saint Petersburg", 59.9343, 30.3351, "Mirai Scanner Botnet / AS12389"),
-    ("CN", "China", "Shanghai", 31.2304, 121.4737, "Chinanet Automated SSH Prober"),
-    ("NL", "Netherlands", "Rotterdam", 51.9244, 4.4777, "Tor Exit Node / Hosting Solutions"),
-    ("US", "United States", "San Jose", 37.3382, -121.8863, "Compromised Cloud VPS / AWS EC2"),
-    ("DE", "Germany", "Frankfurt", 50.1109, 8.6821, "Hetzner Online GmbH Automated Brute"),
-    ("BR", "Brazil", "Rio de Janeiro", -22.9068, -43.1729, "Brute-force Script / Telecom ISP"),
-]
 
 _cache = {}                 # ip -> geo dict (good answers)
 _failed_until = {}          # ip -> time when we may retry
@@ -142,10 +132,6 @@ def resolve(ip):
             _queue_lookup(ip)
         return _make(ip, "??", "Unknown (resolving...)", "Resolving...", None, None, "Resolving live ISP...")
 
-    if config.DEMO_MODE:
-        code, country, city, lat, lng, org = SIMULATED_ORIGINS[zlib.crc32(ip.encode()) % len(SIMULATED_ORIGINS)]
-        return _make(ip, code, country, city, lat, lng, org, private=True, region="Demo Telemetry",
-                     source="simulated-demo")
 
     return _make(ip, "LAN", "Private Network", "Local Area Network", None, None,
                  "Private Address Space", private=True, region="Internal", source="private-network")
