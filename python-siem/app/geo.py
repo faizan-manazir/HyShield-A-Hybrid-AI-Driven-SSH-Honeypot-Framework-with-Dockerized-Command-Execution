@@ -65,8 +65,7 @@ def _fetch(ip):
            "?fields=success,message,ip,continent,country,country_code,region,region_code,city,"
            "latitude,longitude,connection,timezone,security")
     request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HyShield-SIEM/1.0"})
-    # nosec B310: fixed HTTPS provider URL; only a canonicalized IP literal is variable.
-    with urllib.request.urlopen(request, timeout=7) as resp:
+    with urllib.request.urlopen(request, timeout=7) as resp:  # nosec B310 - fixed HTTPS host and canonical IP literal
         data = json.load(resp)
     if data.get("success") is not True:
         raise ValueError(data.get("message") or "IP geolocation lookup failed")
