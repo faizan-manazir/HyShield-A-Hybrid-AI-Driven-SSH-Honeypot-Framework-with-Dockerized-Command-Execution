@@ -4,13 +4,20 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app import charts, config
+from app import auth, charts, config
 from app.main import app, _is_local_request
 
 
 @pytest.fixture(scope="module")
 def client():
+    import secrets
     with TestClient(app) as c:                       # runs startup (creates the ingestor thread)
+        username = "pytest-" + secrets.token_hex(4)
+        admin = auth.create_user(username, "Test-Admin-Password-2026!", "super_admin")
+        response = c.post("/login", data={"username": username, "password": "Test-Admin-Password-2026!"}, follow_redirects=False)
+        assert response.status_code == 303
+        app.state.test_admin = admin
+        app.state.test_admin_cookie = c.cookies.get(auth.COOKIE_NAME)
         app.state.ingestor.poll()                    # read the sample log right now
         yield c
 
@@ -255,3 +262,41 @@ def test_overview_priority_queue_excludes_closed_alerts(client):
 
     queued = queries.overview()["priorityAlerts"]
     assert all(item["id"] != target["id"] for item in queued)
+
+
+
+def test_login_setup_and_role_permissions(client):
+    import secrets
+    analyst_name = "analyst-" + secrets.token_hex(3)
+    auditor_name = "auditor-" + secrets.token_hex(3)
+    analyst = auth.create_user(analyst_name, "Test-Analyst-Password-2026!", "analyst")
+    auditor = auth.create_user(auditor_name, "Test-Auditor-Password-2026!", "auditor")
+
+    client.cookies.set(auth.COOKIE_NAME, auth.make_session(analyst))
+    assert client.get("/").status_code == 200
+    assert client.get("/settings").status_code == 403
+    assert client.get("/users").status_code == 403
+    assert client.post("/alerts/nonexistent/close", data={}).status_code == 404
+    assert client.post("/settings/purge", data={"confirm": "PURGE"}).status_code == 403
+
+    client.cookies.set(auth.COOKIE_NAME, auth.make_session(auditor))
+    assert client.get("/").status_code == 200
+    assert client.get("/audit-logs").status_code == 200
+    assert client.get("/settings").status_code == 403
+    assert client.get("/users").status_code == 403
+    assert client.post("/alerts/nonexistent/close", data={}).status_code == 403
+    assert client.post("/api/test-generator/start", json={"sessions": 1}).status_code == 403
+
+    client.cookies.set(auth.COOKIE_NAME, app.state.test_admin_cookie)
+    assert client.get("/users").status_code == 200
+    assert client.get("/settings").status_code == 200
+
+
+def test_password_hashing_and_account_disable(client):
+    import secrets
+    username = "disable-" + secrets.token_hex(3)
+    user = auth.create_user(username, "Test-Disable-Password-2026!", "auditor")
+    assert auth.authenticate(username, "wrong-password") is None
+    assert auth.authenticate(username, "Test-Disable-Password-2026!") is not None
+    assert auth.set_user_active(user["id"], False, app.state.test_admin) is True
+    assert auth.authenticate(username, "Test-Disable-Password-2026!") is None
