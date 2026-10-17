@@ -41,6 +41,8 @@ def _secret():
 def hash_password(password):
     if not isinstance(password, str) or len(password) < 12:
         raise ValueError("Password must be at least 12 characters.")
+    if len(password) > 1024:
+        raise ValueError("Password must not exceed 1024 characters.")
     salt = secrets.token_bytes(16)
     digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
     return "scrypt$" + base64.urlsafe_b64encode(salt).decode() + "$" + base64.urlsafe_b64encode(digest).decode()
