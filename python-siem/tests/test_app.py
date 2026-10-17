@@ -32,7 +32,8 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     dashboard = client.get("/")
     assert dashboard.status_code == 200
     assert 'href="/live"' in dashboard.text
-    assert "Follow events as they arrive" in dashboard.text
+    assert 'href="/generator"' in dashboard.text
+    assert "Inspect the live Cowrie stream" in dashboard.text
     live = client.get("/live")
     assert live.status_code == 200
     assert "Recent telemetry" in live.text
@@ -213,3 +214,15 @@ def test_ip_geolocation_provider_uses_https_and_parses_coordinates(monkeypatch):
     assert result["lat"] == 12.345678 and result["lng"] == 98.765432
     assert result["source"] == "ipwho.is"
     assert result["org"] == "Example Org"
+
+
+
+def test_overview_priority_queue_excludes_closed_alerts(client):
+    from app import queries
+    alerts = queries.alerts(limit=20)
+    if not alerts:
+        pytest.skip("sample telemetry produced no alerts")
+    target = alerts[0]
+    queries.close_alert(target["id"])
+    queued = queries.overview()["recentAlerts"]
+    assert all(item["id"] != target["id"] for item in queued)

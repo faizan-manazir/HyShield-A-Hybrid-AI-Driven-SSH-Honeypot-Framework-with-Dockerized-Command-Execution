@@ -62,20 +62,25 @@ def overview():
                     "openAlerts": totals["open_alerts"], "uniqueActors": totals["actors"]},
         "timeline": timeline,
         "categories": categories,
-        "recentAlerts": alerts(limit=5),
+        "recentAlerts": alerts(limit=5, status="OPEN"),
         "topActors": actors()[:5],
     }
 
 
 # -------------------------------------------------------------------- alerts
-def alerts(severity=None, limit=500):
+def alerts(severity=None, limit=500, status=None):
     sql = """SELECT a.id, a.session_id, a.severity, a.title, a.reason, a.mitre, a.status,
                     s.src_ip, s.start_time AS timestamp
              FROM alerts a LEFT JOIN sessions s ON s.session_id = a.session_id"""
-    args = []
+    conditions, args = [], []
     if severity and severity != "ALL":
-        sql += " WHERE a.severity = ?"
+        conditions.append("a.severity = ?")
         args.append(severity)
+    if status and status != "ALL":
+        conditions.append("a.status = ?")
+        args.append(status)
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
     sql += " ORDER BY s.start_time DESC LIMIT ?"
     args.append(limit)
     return [dict(r) for r in _rows(sql, args)]

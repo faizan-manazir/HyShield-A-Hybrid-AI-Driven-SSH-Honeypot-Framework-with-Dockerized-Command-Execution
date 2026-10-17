@@ -611,6 +611,14 @@
       refreshing = false;
     }
   }
+  // The slash key advertised in the top bar opens Event Explorer.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target && target.matches('input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    window.location.href = '/explorer';
+  });
   if (page === 'geomap') initGeoControls();
   window.setInterval(refreshData, Math.max(10, refreshSeconds) * 1000);
 })();
