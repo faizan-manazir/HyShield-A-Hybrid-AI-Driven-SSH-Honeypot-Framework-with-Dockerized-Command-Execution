@@ -25,7 +25,7 @@ def client():
 PAGES = ["/", "/live", "/geomap", "/mitre", "/alerts", "/alerts?severity=HIGH", "/explorer",
          "/explorer?q=wget&category=CMD", "/actors", "/actors?sort=RISK", "/sessions",
          "/sessions?sort=THREAT",
-         "/settings", "/settings?tab=response", "/settings?tab=intel", "/settings?tab=raw", "/settings?tab=source", "/generator"]
+         "/settings", "/settings?tab=response", "/settings?tab=intel", "/settings?tab=raw", "/settings?tab=source"]
 
 
 @pytest.mark.parametrize("path", PAGES)
@@ -40,7 +40,6 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     dashboard = client.get("/")
     assert dashboard.status_code == 200
     assert 'href="/live"' in dashboard.text
-    assert 'href="/generator"' in dashboard.text
     assert "Real-time Attack Map" in dashboard.text
     assert "Investigation priorities" in dashboard.text
     assert "Telemetry Distribution" in dashboard.text
@@ -173,49 +172,6 @@ def test_purge_requires_confirmation(client):
     client.post("/settings/purge", data={"confirm": "PURGE"})
     assert client.get("/api/overview/metrics").json()["metrics"]["totalEvents"] == 0
     assert app.state.ingestor.poll() == 0                    # old lines are not re-read
-
-
-def test_generator_allows_same_origin_forwarded_dev_port_requests():
-    def make_request(origin):
-        return Request({
-            "type": "http",
-            "method": "POST",
-            "path": "/api/test-generator/start",
-            "headers": [(b"host", b"codespace.example"), (b"origin", origin.encode())],
-            "client": ("10.0.0.8", 12345),
-            "server": ("codespace.example", 443),
-            "scheme": "https",
-            "query_string": b"",
-        })
-
-    assert _is_local_request(make_request("https://codespace.example")) is True
-    assert _is_local_request(make_request("https://attacker.example")) is False
-
-
-def test_generator_page_and_status_api(client):
-    page = client.get("/generator")
-    assert page.status_code == 200
-    assert "Test Event Generator" in page.text
-    assert "TEST-NET" in page.text
-    status = client.get("/api/test-generator/status")
-    assert status.status_code == 200
-    assert "running" in status.json()
-
-def test_generator_emits_synthetic_cowrie_events(client):
-    import time
-    response = client.post("/api/test-generator/start", json={"sessions": 1, "speed": "fast"})
-    assert response.status_code == 200, response.text
-    deadline = time.time() + 3
-    status = client.get("/api/test-generator/status").json()
-    while status["running"] and time.time() < deadline:
-        time.sleep(0.05)
-        status = client.get("/api/test-generator/status").json()
-    assert not status["running"]
-    assert status["completed_sessions"] == 1
-    assert status["events_written"] >= 3
-    assert app.state.ingestor.poll() >= 3
-    events = client.get("/api/events?limit=200").json()
-    assert any(e.get("src_ip", "").startswith(("192.0.2.", "198.51.100.", "203.0.113.")) for e in events)
 
 
 def test_geo_map_is_interactive_and_displays_coordinate_metadata(client):
