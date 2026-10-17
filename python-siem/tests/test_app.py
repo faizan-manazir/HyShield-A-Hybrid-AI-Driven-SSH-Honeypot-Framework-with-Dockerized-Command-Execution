@@ -313,3 +313,16 @@ def test_protected_routes_require_login_and_setup_closes_after_bootstrap(client)
     setup = client.get("/setup", follow_redirects=False)
     assert setup.status_code == 303 and setup.headers["location"] == "/login"
     client.cookies.set(auth.COOKIE_NAME, saved_cookie)
+
+
+
+def test_initial_super_admin_setup_is_one_time(monkeypatch, tmp_path):
+    from app import db
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "bootstrap.db")
+    db.init()
+    user = auth.create_initial_admin("bootstrap-admin", "Bootstrap-Admin-Password-2026!")
+    assert user["role"] == "super_admin"
+    assert auth.user_count() == 1
+    with pytest.raises(ValueError, match="already been completed"):
+        auth.create_initial_admin("second-admin", "Second-Admin-Password-2026!")
+    assert auth.user_count() == 1
