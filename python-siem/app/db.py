@@ -1,6 +1,7 @@
 """SQLite helpers. Python's built-in sqlite3 is all we need."""
 import sqlite3
 import json
+import os
 
 from . import config
 
@@ -70,9 +71,22 @@ CREATE TABLE IF NOT EXISTS geo_cache (
 """
 
 
+def _restrict_file(path):
+    """Best-effort owner-only permissions on POSIX; no-op where unsupported."""
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
 def connect() -> sqlite3.Connection:
+    config.DATA.mkdir(parents=True, exist_ok=True)
+    existed = config.DB_PATH.exists()
     conn = sqlite3.connect(config.DB_PATH, timeout=30)
+    if not existed:
+        _restrict_file(config.DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
