@@ -116,19 +116,11 @@ The tests cover application routes and behaviors, but passing tests do not repla
 | `ANALYST_LAN_IP` | `192.168.100.11` | private IP shown as your own lab machine |
 | `HYSHIELD_DATA` | `data/` | folder for the database and settings |
 
-## What changed compared with the Node/Next.js version
+## Implementation status
 
-Same pages, same scoring dimensions, same MITRE mapping. I compared the scoring engine against the original
-JavaScript on 68 sessions: identical results wherever the original was correct. Differences are bug fixes:
+This repository's supported dashboard is the Python SIEM in this directory. The legacy Node.js/Next.js dashboard has been removed; do not follow old instructions to copy this directory over `siem-dashboard/` or install Node.js dependencies. Use the root [deployment walkthrough](../README.md) and this guide for the current layout and setup.
 
-- **`cat /etc/passwd` was reported as "Backdoor Account Created"** (and as cron persistence, because `'at '` matched
-  inside `cat `). Now only real commands (`useradd`, `passwd bob` ...) count.
-- **Actor risk was wrong**: it took the alphabetical maximum of the words, so CRITICAL could never win. Now ranked properly.
-- **MITRE page showed zero counts** for two techniques (name mismatch) and printed made-up technique ids. Now uses the real ids.
-- **Alert times and source IPs** were missing on the alerts pages (the frontend read fields the API never sent).
-- **Session list "Events" column** was always 0.
-- **The VirusTotal key** was sent back to the browser and printed in the raw config. It is now write-only.
-- The "Purge Database" button did nothing; it now works (type `PURGE` to confirm).
+The Python dashboard includes session scoring, MITRE ATT&CK mapping, alert triage, event/session search, actor summaries, report export, role-based access, and a geospatial view. Scoring is rule-based and geolocation is approximate; validate the behavior against your own Cowrie telemetry before operational use.
 
 ## Security notes
 
