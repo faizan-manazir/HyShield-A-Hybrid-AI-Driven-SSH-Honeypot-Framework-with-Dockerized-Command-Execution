@@ -112,8 +112,8 @@ Passwords are stored as salted scrypt hashes, not plaintext. Session cookies are
 | Role | Permissions |
 |---|---|
 | `super_admin` | Full access, user creation/enable/disable, settings, purge, and administrative audit logs. |
-| `analyst` | View dashboards and investigation data, close alerts, and use the synthetic event generator. No account management, settings changes, or purge. |
-| `auditor` | Read-only dashboards, alerts, event/session investigation, and audit logs. Cannot mutate alerts, settings, accounts, or generator state. |
+| `analyst` | View dashboards and investigation data and close alerts. No account management, settings changes, or purge. |
+| `auditor` | Read-only dashboards, alerts, event/session investigation, and audit logs. Cannot mutate alerts, settings, or accounts. |
 
 Authorization is enforced by server middleware on page and API requests; UI navigation hiding is not the security boundary. Administrative/authentication activity is recorded in the SQLite `audit_logs` table and shown at `/audit-logs` to Super Admins and Auditors. Use a trusted HTTPS ingress for remote access. This feature does not replace a full deployment security review.
 
@@ -149,7 +149,6 @@ The dashboard is organized around triage and investigation. Page availability an
 | `/sessions` | Session list. | Select a session for investigation. |
 | `/sessions/{id}` | Session timeline/evidence and score explanation. | Review commands and context behind an alert. |
 | `/settings` | Local settings and configuration display. | Adjust supported application settings. |
-| `/generator` | Synthetic event generator. | Populate a test environment with harmless sample telemetry. |
 | `/docs` | FastAPI OpenAPI explorer. | Inspect available JSON endpoints and schemas. |
 
 ### Suggested analyst workflow
@@ -533,7 +532,6 @@ Do not claim tests passed unless they were actually executed.
 - **Alert:** record created by a detection rule/correlation result.
 - **MITRE ATT&CK:** public knowledge base of adversary tactics and techniques.
 - **Geolocation:** approximate network location associated with a public IP address.
-- **TEST-NET:** documentation-reserved IP ranges used for examples and operational telemetry.
 - **False positive:** an alert that does not represent the harmful behavior suggested by the rule.
 - **False negative:** harmful behavior that the configured rules do not detect.
 - **Chain of custody:** documented handling of evidence from acquisition through analysis.
