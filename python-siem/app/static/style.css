@@ -820,3 +820,9 @@ input::placeholder, textarea::placeholder { color: #8fa2b9; opacity: 1; }
   .overview-severity { margin-left:auto; }
 }
 @media (prefers-reduced-motion: reduce) { .overview-priority-item { transition:none; } }
+
+
+/* Compact dashboard charts: keep analytics readable without dominating the overview. */
+#overview-timeline .chart { max-height: 210px; }
+#overview-donut .donut { max-width: 180px; }
+#overview-donut { min-height: 185px; }
