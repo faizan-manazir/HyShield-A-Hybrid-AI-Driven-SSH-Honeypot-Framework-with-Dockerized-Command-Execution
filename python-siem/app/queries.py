@@ -108,31 +108,52 @@ def close_alert(alert_id):
 
 # -------------------------------------------------------------------- events
 def events(limit=500, q="", category="ALL"):
-    filtering = bool(q) or category != "ALL"
-    rows = _rows("""SELECT r.id, r.session_id, r.timestamp, r.eventid, r.payload, s.summary
-                    FROM raw_events r LEFT JOIN sessions s ON s.session_id = r.session_id
-                    ORDER BY r.timestamp DESC LIMIT ?""", (5000 if filtering else limit,))
+    """Return newest events, applying search/category filters before LIMIT."""
+    limit = max(1, min(int(limit), 5000))
+    needle = (q or "").lower().strip()
+    category = (category or "ALL").upper()
+    if category not in {"ALL", "AUTH", "CMD", "SESS", "INFO"}:
+        category = "ALL"
+
+    sql = """SELECT r.id, r.session_id, r.timestamp, r.eventid, r.payload, s.summary
+             FROM raw_events r LEFT JOIN sessions s ON s.session_id = r.session_id"""
+    conditions, args = [], []
+    category_sql = """CASE
+        WHEN LOWER(COALESCE(r.eventid, '')) LIKE '%login%' THEN 'AUTH'
+        WHEN LOWER(COALESCE(r.eventid, '')) LIKE '%command%' THEN 'CMD'
+        WHEN LOWER(COALESCE(r.eventid, '')) LIKE '%connect%'
+          OR LOWER(COALESCE(r.eventid, '')) LIKE '%closed%' THEN 'SESS'
+        ELSE 'INFO' END"""
+    if category != "ALL":
+        conditions.append(f"{category_sql} = ?")
+        args.append(category)
+    if needle:
+        # Filter in SQL before LIMIT so older matching events remain searchable.
+        conditions.append("""(LOWER(COALESCE(r.payload, '')) LIKE ?
+                              OR LOWER(COALESCE(s.summary, '')) LIKE ?
+                              OR LOWER(COALESCE(r.eventid, '')) LIKE ?
+                              OR LOWER(COALESCE(r.session_id, '')) LIKE ?)""")
+        pattern = f"%{needle}%"
+        args.extend([pattern, pattern, pattern, pattern])
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+    sql += " ORDER BY r.timestamp DESC LIMIT ?"
+    args.append(limit)
+
     mitre_by_session, out = {}, []
-    needle = q.lower().strip()
-    for r in rows:
+    for r in _rows(sql, args):
         sid = r["session_id"]
         if sid not in mitre_by_session:
             tags = db.jload(r["summary"]).get("mitre", [])
-            mitre_by_session[sid] = " | ".join(f"{m['id']} {m['name']} {m['tactic']}" for m in tags)
+            mitre_by_session[sid] = " | ".join(
+                f"{m['id']} {m['name']} {m['tactic']}" for m in tags)
         e = db.jload(r["payload"])
-        e.update(id=r["id"], session=sid, timestamp=r["timestamp"] or e.get("timestamp"),
-                 eventid=r["eventid"] or e.get("eventid"), mitre_context=mitre_by_session[sid],
+        e.update(id=r["id"], session=sid,
+                 timestamp=r["timestamp"] or e.get("timestamp"),
+                 eventid=r["eventid"] or e.get("eventid"),
+                 mitre_context=mitre_by_session[sid],
                  category=event_category(r["eventid"]))
-        if category != "ALL" and e["category"] != category:
-            continue
-        if needle:
-            haystack = " ".join(str(e.get(k) or "") for k in
-                                ("eventid", "src_ip", "session", "input", "username", "mitre_context")).lower()
-            if needle not in haystack:
-                continue
         out.append(e)
-        if len(out) >= limit:
-            break
     return out
 
 
