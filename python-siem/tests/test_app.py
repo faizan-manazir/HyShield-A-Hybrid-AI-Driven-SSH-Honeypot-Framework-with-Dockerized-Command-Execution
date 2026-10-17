@@ -25,7 +25,7 @@ def client():
 PAGES = ["/", "/live", "/geomap", "/mitre", "/alerts", "/alerts?severity=HIGH", "/explorer",
          "/explorer?q=wget&category=CMD", "/actors", "/actors?sort=RISK", "/sessions",
          "/sessions?sort=THREAT",
-         "/settings", "/settings?tab=response", "/settings?tab=intel", "/settings?tab=raw", "/generator"]
+         "/settings", "/settings?tab=response", "/settings?tab=intel", "/settings?tab=raw", "/settings?tab=source", "/generator"]
 
 
 @pytest.mark.parametrize("path", PAGES)
@@ -436,6 +436,7 @@ def test_super_admin_can_change_cowrie_log_path_immediately(client, tmp_path):
         "timestamp": "2026-10-17T00:00:00Z",
     }) + "\n", encoding="utf-8")
     original_path = app.state.ingestor.log_path
+    original_generator_path = app.state.event_generator.log_path
     original_setting = cfg.load().get("cowrieLogPath", original_path)
     try:
         response = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(source)},
@@ -448,6 +449,7 @@ def test_super_admin_can_change_cowrie_log_path_immediately(client, tmp_path):
         assert any(item["id"] == "custom-path-test" for item in client.get("/api/sessions").json())
     finally:
         app.state.ingestor.set_log_path(original_path)
+        app.state.event_generator.log_path = original_generator_path
         cfg.save({**cfg.load(), "cowrieLogPath": original_setting})
 
 
