@@ -528,5 +528,5 @@
     window.location.href = '/explorer';
   });
   if (page === 'geomap') initGeoControls();
-  window.setInterval(refreshData, Math.max(10, refreshSeconds) * 1000);
+  window.setInterval(refreshData, Math.max(5, refreshSeconds) * 1000);
 })();
