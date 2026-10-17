@@ -103,6 +103,22 @@ The SIEM ingestion pipeline is distinct from the parent project's interactive SS
 
 Use the current files in the branch as the source of truth when code changes. This document explains responsibilities and known behavior; it is not a substitute for reading the implementation.
 
+## Authentication and role-based access control
+
+The SIEM requires an account before protected pages and APIs can be used. On a fresh database, visit `/setup` to create the first Super Admin. Once at least one account exists, setup redirects to login and cannot create another initial administrator. Sign in at `/login`; use **Sign out** to clear the session cookie.
+
+Passwords are stored as salted scrypt hashes, not plaintext. Session cookies are signed, HttpOnly, SameSite=Strict, and expire after eight hours. The signing secret is read from `HYSHIELD_AUTH_SECRET` or generated in `data/auth_secret`; protect this file and the data directory. The generated key must persist across restarts or users will be logged out. Set a stable secret through the environment when using multiple app instances.
+
+### Roles
+
+| Role | Permissions |
+|---|---|
+| `super_admin` | Full access, user creation/enable/disable, settings, purge, and administrative audit logs. |
+| `analyst` | View dashboards and investigation data, close alerts, and use the synthetic event generator. No account management, settings changes, or purge. |
+| `auditor` | Read-only dashboards, alerts, event/session investigation, and audit logs. Cannot mutate alerts, settings, accounts, or generator state. |
+
+Authorization is enforced by server middleware on page and API requests; UI navigation hiding is not the security boundary. Administrative/authentication activity is recorded in the SQLite `audit_logs` table and shown at `/audit-logs` to Super Admins and Auditors. Use a trusted HTTPS ingress for remote access. This feature does not replace a full deployment security review.
+
 ## 4. Application startup and lifecycle
 
 The application is created in `app/main.py`. Its lifespan initializes the SQLite schema and starts the background ingestor. The synthetic generator is available through its application interface. The server entry point in `run.py` imports configuration and runs Uvicorn using the configured host and port.
