@@ -179,3 +179,15 @@ Public IP coordinates are resolved over HTTPS through `ipwho.is` and cached loca
 ## Investigation prioritization
 
 The Overview's **Investigation Priorities** panel sorts open alerts by severity (critical to low), then by newest timestamp within each severity. The separate **Recent Alerts** panel remains chronological.
+
+
+## Security hardening and deployment
+
+- The app binds to `127.0.0.1` by default. Expose it only behind a trusted TLS reverse proxy or VPN; configure trusted proxy headers and block direct unencrypted access to the ASGI port.
+- If HTTPS terminates at a reverse proxy, set `HYSHIELD_COOKIE_SECURE=true` so the session cookie always has the `Secure` attribute. Do not trust arbitrary forwarded headers from the public internet.
+- When deploying beyond loopback development, set `HYSHIELD_ENABLE_TEST_GENERATOR=false`. Synthetic events otherwise write into the configured Cowrie JSON log and can contaminate operational evidence. The feature defaults on only when `HOST` is a loopback value.
+- Runtime data is stored under `HYSHIELD_DATA` (default: `python-siem/data`). Keep that directory accessible only to the service account. On POSIX systems, the app attempts owner-only permissions for the directory, database, settings file, and signing secret; verify permissions on the actual deployment OS.
+- The `logRetention` setting now removes timestamped telemetry older than the configured number of days during periodic ingestion polling. Audit entries older than 365 days are pruned. Entries without parseable timestamps cannot be aged out by this policy; retain original Cowrie evidence separately according to your incident-response policy.
+- Failed login attempts are limited to eight failures per client IP in a 15-minute window per application process. Multi-worker or multi-instance deployments must also configure a shared rate limit at the reverse proxy or shared store.
+- Install dependencies from a reviewed lock/constraints file when deploying. The current requirements are range-based; CI audits the resolved dependencies but does not yet guarantee a reproducible pinned environment.
+- Do not treat the dashboard as a substitute for preserving original Cowrie logs, access controls on backups, secure report handling, and a deployment-specific penetration test.
