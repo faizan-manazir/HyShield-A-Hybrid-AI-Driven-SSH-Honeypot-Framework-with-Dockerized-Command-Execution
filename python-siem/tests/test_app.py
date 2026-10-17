@@ -423,3 +423,45 @@ def test_generator_can_be_disabled_for_non_development_deployments(client, monke
     response = client.post("/api/test-generator/start", json={"sessions": 1})
     assert response.status_code == 404
     monkeypatch.setattr(config, "ENABLE_TEST_GENERATOR", True)
+
+
+
+def test_super_admin_can_change_cowrie_log_path_immediately(client, tmp_path):
+    from app import settings as cfg
+    source = tmp_path / "cowrie-custom.json"
+    source.write_text(json.dumps({
+        "eventid": "cowrie.session.connect",
+        "session": "custom-path-test",
+        "src_ip": "198.51.100.77",
+        "timestamp": "2026-10-17T00:00:00Z",
+    }) + "\n", encoding="utf-8")
+    original_path = app.state.ingestor.log_path
+    original_setting = cfg.load().get("cowrieLogPath", original_path)
+    try:
+        response = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(source)},
+                               follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/settings?tab=source&saved=1"
+        assert app.state.ingestor.log_path == str(source.resolve())
+        assert cfg.load()["cowrieLogPath"] == str(source.resolve())
+        assert app.state.ingestor.poll() == 1
+        assert any(item["id"] == "custom-path-test" for item in client.get("/api/sessions").json())
+    finally:
+        app.state.ingestor.set_log_path(original_path)
+        cfg.save({**cfg.load(), "cowrieLogPath": original_setting})
+
+
+def test_cowrie_log_path_rejects_missing_file_and_non_admin(client, tmp_path):
+    missing = tmp_path / "does-not-exist.json"
+    response = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(missing)},
+                           follow_redirects=False)
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+    assert app.state.ingestor.log_path != str(missing)
+
+    analyst = auth.create_user("path-analyst-test", "Test-Path-Password-2026!", "analyst")
+    client.cookies.set(auth.COOKIE_NAME, auth.make_session(analyst))
+    forbidden = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(missing)},
+                            follow_redirects=False)
+    assert forbidden.status_code == 403
+    client.cookies.set(auth.COOKIE_NAME, app.state.test_admin_cookie)
