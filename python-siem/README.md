@@ -13,9 +13,17 @@ MITRE ATT&CK and shows everything in a web dashboard.
 You need Python 3.10 or newer.
 
 ```bash
-cd hyshield-siem-py
+cd python-siem
 python -m venv .venv
-source .venv/bin/activate          # Windows:  .venv\Scripts\activate
+source .venv/bin/activate
+pip install -r requirements.txt
+python run.py
+```
+
+For Windows PowerShell, use these commands instead of the activation line above:
+```powershell
+py -m venv .venv
+.\\.venv\\Scripts\\Activate.ps1
 pip install -r requirements.txt
 python run.py
 ```
@@ -122,7 +130,7 @@ Replace the old `siem-dashboard/` folder with the contents of this folder, delet
 
 The dashboard now uses a refined dark SOC-console theme with a clearer visual hierarchy, updated sidebar and navigation states, a compact context bar, more consistent cards/tables/forms, improved spacing and typography, visible keyboard focus states, reduced-motion support, and responsive layouts for smaller screens. This refresh is presentation-only: existing FastAPI routes, templates, data processing, and features are retained.
 
-Validation after the visual refresh: `python -m pytest -q` (39 tests passed).
+Historical validation note: the visual-refresh change was previously reported as passing `python -m pytest -q` with 39 tests at that time. This is not a test result for the current branch or its later changes; rerun the suite and use the actual exit code/output to confirm current status.
 
 ### Refresh and motion behavior
 
