@@ -156,7 +156,7 @@ async def setup_submit(request: Request):
     if password != confirm:
         return render(request, "setup.html", "setup", error="Passwords do not match.")
     try:
-        user = auth.create_user(username, password, "super_admin")
+        user = auth.create_initial_admin(username, password)
     except ValueError as exc:
         return render(request, "setup.html", "setup", error=str(exc))
     except Exception:
