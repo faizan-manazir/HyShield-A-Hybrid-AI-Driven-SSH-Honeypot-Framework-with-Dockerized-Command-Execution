@@ -106,10 +106,11 @@ def render(request, template, page, refresh=0, **context):
 async def lifespan(app):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     db.init()
-    app.state.ingestor = Ingestor(config.LOG_PATH, config.POLL_SECONDS)
+    configured_log_path = Path(cfg.load().get("cowrieLogPath", str(config.LOG_PATH))).expanduser()
+    app.state.ingestor = Ingestor(configured_log_path, config.POLL_SECONDS)
     app.state.ingestor.start()
-    app.state.event_generator = RandomEventGenerator(config.LOG_PATH)
-    logging.getLogger("hyshield").info("Tailing %s", config.LOG_PATH)
+    app.state.event_generator = RandomEventGenerator(configured_log_path)
+    logging.getLogger("hyshield").info("Tailing %s", configured_log_path)
     yield
     app.state.ingestor.stop()
 
@@ -488,7 +489,7 @@ async def save_settings(request: Request):
             app.state.event_generator.log_path = new_path
     
     auth.record_audit(request.state.user, "settings_updated", str(tab or "global"))
-    return RedirectResponse(f"/settings?tab={tab if tab in ('global', 'response', 'intel') else 'global'}&saved=1",
+    return RedirectResponse(f"/settings?tab={tab if tab in ('global', 'response', 'intel', 'source') else 'global'}&saved=1",
                             status_code=303)
 
 
