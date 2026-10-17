@@ -190,6 +190,44 @@ def set_user_active(user_id, active, acting_user):
     return True
 
 
+
+def update_user(user_id, username, role, new_password, acting_user):
+    username = str(username or "").strip()
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    if not 3 <= len(username) <= 64 or any(ch not in allowed for ch in username):
+        raise ValueError("Username must be 3–64 characters and use only letters, numbers, dot, underscore, or hyphen.")
+    if role not in ROLES:
+        raise ValueError("Choose a valid role.")
+    new_password = str(new_password or "")
+    if new_password and len(new_password) < 12:
+        raise ValueError("New password must be at least 12 characters.")
+    if len(new_password) > 1024:
+        raise ValueError("New password must not exceed 1024 characters.")
+    conn = db.connect()
+    try:
+        row = conn.execute("SELECT id, username, role, active FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            return False
+        if row["active"] and row["role"] == "super_admin" and role != "super_admin":
+            count = conn.execute("SELECT COUNT(*) FROM users WHERE role='super_admin' AND active=1").fetchone()[0]
+            if count <= 1:
+                raise ValueError("At least one active Super Admin must remain.")
+        if new_password:
+            conn.execute("UPDATE users SET username=?, role=?, password_hash=? WHERE id=?",
+                         (username, role, hash_password(new_password), user_id))
+        else:
+            conn.execute("UPDATE users SET username=?, role=? WHERE id=?", (username, role, user_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    record_audit(acting_user, "user_updated",
+                 f"{row['username']} -> {username} ({role}); password_changed={'yes' if new_password else 'no'}")
+    return True
+
+
 def make_session(user):
     payload = {"uid": user["id"], "username": user["username"], "role": user["role"], "exp": int(time.time()) + SESSION_SECONDS}
     encoded = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
