@@ -92,7 +92,6 @@ The SIEM ingestion pipeline is distinct from the parent project's interactive SS
 | `app/geo.py` | IP classification, asynchronous public-IP geolocation, and caching. |
 | `app/charts.py` | Escaped SVG chart and threat-map generation. |
 | `app/settings.py` | Persistent settings, public settings projection, and raw config rendering. |
-| `app/test_generator.py` | Local synthetic Cowrie event generator. |
 | `app/templates/` | Jinja templates for the pages. |
 | `app/static/app.js` | Browser interactions, API requests, and quiet UI refreshes. |
 | `app/static/style.css` | Layout, colors, responsive styles, risk indicators, and dashboard presentation. |
@@ -337,7 +336,6 @@ Configuration is read by `app/config.py`. Defaults below describe the current Py
 | `HOST` | `127.0.0.1`, localhost-only default bind. |
 | `PORT` | `8000`. |
 | `POLL_SECONDS` | `2` seconds between ingestion polls. |
-| `DEMO_MODE` | Off by default; use `true` to give private/loopback IPs stable simulated map locations. |
 | `HYSHIELD_GEO` | Geolocation enabled unless set to `off`. |
 | `HONEYPOT_NAME` | Sensor label displayed by the map. |
 | `HONEYPOT_LAT` / `HONEYPOT_LNG` | Sensor coordinates, defaulting to Islamabad coordinates. |
@@ -361,7 +359,7 @@ HYSHIELD_GEO=off python run.py
 Run a demo bound to all interfaces (only when the environment's access controls make this appropriate):
 
 ```bash
-HOST=0.0.0.0 PORT=8000 DEMO_MODE=true python run.py
+HOST=0.0.0.0 PORT=8000  python run.py
 ```
 
 On Windows PowerShell, set variables before starting:
@@ -412,22 +410,6 @@ DEMO_MODE=true uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Use the forwarded port only for the intended audience. Do not expose sensitive logs or an unauthenticated dashboard publicly.
-
-## 17. Synthetic events and CLI simulation
-
-The application includes a synthetic Cowrie event generator. It writes randomized Cowrie-shaped JSON lines using documentation-only TEST-NET IP ranges and does not send network traffic. Those records flow through the normal ingestion/correlation pipeline, so they affect metrics, sessions, risk scores, alerts, and demo maps.
-
-The UI generator supports a bounded session count and normal/fast generation. A CLI simulator is also provided under `tools/simulate.py`.
-
-Example documented workflow:
-
-```bash
-DEMO_MODE=true python run.py
-# In another terminal, from python-siem/:
-python tools/simulate.py --count 30
-```
-
-Use a separate test log/database whenever possible. If synthetic records are appended to the same log as real activity, they become part of the same ingested dataset and may be difficult to distinguish later. Mark demo data clearly and never report it as real attacker telemetry.
 
 ## 18. Security controls and deployment limitations
 
@@ -526,7 +508,6 @@ Confirm the setting is persisted and that external credentials/service access ar
 - Re-test the ingestion pipeline after Cowrie upgrades.
 - Review API routes before exposing them through a reverse proxy.
 - Document local configuration differences so another analyst can reproduce the deployment.
-- Keep synthetic demo data clearly marked and separate.
 
 ## 22. Development workflow
 
