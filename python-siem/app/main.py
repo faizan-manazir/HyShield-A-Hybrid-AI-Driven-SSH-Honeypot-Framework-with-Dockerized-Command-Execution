@@ -184,7 +184,7 @@ def users_page(request: Request, error: str = "", saved: int = 0):
 async def create_user_page(request: Request):
     form = await request.form()
     try:
-        auth.create_user(form.get("username", ""), form.get("password", ""), form.get("role", ""))
+        auth.create_user(form.get("username", ""), form.get("password", ""), form.get("role", ""), request.state.user)
     except ValueError as exc:
         from urllib.parse import quote
         return RedirectResponse("/users?error=" + quote(str(exc)), status_code=303)
@@ -228,7 +228,7 @@ def api_users():
 async def api_create_user(request: Request):
     try:
         body = await request.json()
-        user = auth.create_user(body.get("username"), body.get("password"), body.get("role"))
+        user = auth.create_user(body.get("username"), body.get("password"), body.get("role"), request.state.user)
         return JSONResponse(user, status_code=201)
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
