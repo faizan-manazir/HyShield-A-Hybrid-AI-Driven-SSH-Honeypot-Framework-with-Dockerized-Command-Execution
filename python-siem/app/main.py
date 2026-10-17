@@ -99,9 +99,19 @@ def _safe_next(value, default):
 @app.get("/")
 def overview_page(request: Request):
     data = queries.overview()
+    geo_data = queries.geo_overview()
+    land = charts.land_path(APP_DIR / "static" / "countries-110m.json")
     return render(request, "overview.html", "overview", refresh=10, d=data,
                   timeline_svg=charts.area_chart(data["timeline"]),
-                  donut_svg=charts.donut(data["categories"]))
+                  donut_svg=charts.donut(data["categories"]),
+                  map_svg=charts.world_map(land, geo_data["attackNodes"], geo_data["honeypot"]),
+                  geo=geo_data,
+                  sparklines={
+                      "events": charts.sparkline(data["timeline"], "#fb7185"),
+                      "sessions": charts.sparkline(data["timeline"], "#f59e0b"),
+                      "actors": charts.sparkline(data["timeline"], "#a78bfa"),
+                      "alerts": charts.sparkline(data["timeline"], "#60a5fa"),
+                  })
 
 
 @app.get("/live")
