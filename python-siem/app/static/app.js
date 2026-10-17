@@ -66,61 +66,6 @@
     appNotice.hideTimer = window.setTimeout(() => appNotice.classList.remove('is-visible'), 4500);
   }
 
-  // Local synthetic-event generator controls. This UI only writes safe test events
-  // to the configured Cowrie JSON log; it never sends network traffic.
-  if (page === 'generator') {
-    const start = document.querySelector('#generator-start');
-    const stop = document.querySelector('#generator-stop');
-    const message = document.querySelector('#generator-message');
-    const state = document.querySelector('#generator-state');
-    const completed = document.querySelector('#generator-completed');
-    const events = document.querySelector('#generator-events');
-    const targetLabel = document.querySelector('#generator-target-label');
-    const progress = document.querySelector('#generator-progress');
-    let busy = false;
-    const generatorJSON = async (url, method = 'GET', body = undefined) => {
-      const response = await fetch(url, { method, credentials: 'same-origin', cache: 'no-store',
-        headers: { 'Accept': 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-        ...(body ? { body: JSON.stringify(body) } : {}) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-      return data;
-    };
-    const paintGenerator = (data) => {
-      if (state) { state.textContent = data.running ? 'RUNNING' : (data.error ? 'ERROR' : 'IDLE'); state.className = `metric-value ${data.running ? 'generator-running' : ''}`; }
-      if (completed) completed.textContent = Number(data.completed_sessions || 0).toLocaleString();
-      if (events) events.textContent = Number(data.events_written || 0).toLocaleString();
-      if (targetLabel) targetLabel.textContent = `Target: ${data.target_sessions || 0} sessions`;
-      if (progress) progress.style.width = `${Math.min(100, Math.round(100 * (data.completed_sessions || 0) / Math.max(1, data.target_sessions || 1)))}%`;
-      if (start) start.disabled = Boolean(data.running) || busy;
-      if (stop) stop.disabled = !data.running || busy;
-      if (message && !busy) message.textContent = data.error ? `Generator error: ${data.error}` : (data.last_event || (data.running ? 'Generating synthetic events…' : 'Ready. Start a run to append synthetic events to the log.'));
-    };
-    const refreshGenerator = async () => {
-      if (document.hidden || !navigator.onLine || busy) return;
-      try { paintGenerator(await generatorJSON('/api/test-generator/status')); } catch (error) { if (message) message.textContent = error.message; }
-    };
-    start?.addEventListener('click', async () => {
-      busy = true; if (start) start.disabled = true; if (stop) stop.disabled = true;
-      if (message) message.textContent = 'Starting the generator…';
-      try {
-        const sessions = Number(document.querySelector('#generator-sessions')?.value || 10);
-        const speed = document.querySelector('#generator-speed')?.value || 'normal';
-        paintGenerator(await generatorJSON('/api/test-generator/start', 'POST', { sessions, speed }));
-      } catch (error) { if (message) message.textContent = error.message; }
-      finally { busy = false; refreshGenerator(); }
-    });
-    stop?.addEventListener('click', async () => {
-      busy = true; if (start) start.disabled = true; if (stop) stop.disabled = true;
-      if (message) message.textContent = 'Stopping after the current event…';
-      try { paintGenerator(await generatorJSON('/api/test-generator/stop', 'POST', {})); }
-      catch (error) { if (message) message.textContent = error.message; }
-      finally { busy = false; refreshGenerator(); }
-    });
-    refreshGenerator();
-    window.setInterval(refreshGenerator, 1500);
-  }
-
   // API-driven background updates: request structured data and patch only
   // changing elements. Never fetch/replace the HTML document or the whole page.
   const refreshSeconds = Number(document.body.dataset.refresh || 0);
@@ -289,9 +234,9 @@
     text('#geo-detail-events', node.dataset.events || '0');
     text('#geo-detail-org', node.dataset.org || 'Unknown network');
     const source = node.dataset.source || 'unknown';
-    text('#geo-detail-source', source === 'simulated-demo' ? 'Simulated demo data' : source);
+    text('#geo-detail-source', source);
     const radius = Number(node.dataset.radiusKm);
-    text('#geo-detail-accuracy', source === 'simulated-demo' ? 'Illustrative only' : (Number.isFinite(radius) && radius > 0 ? `Approx. ${radius} km radius` : 'Approximate; radius unavailable'));
+    text('#geo-detail-accuracy', Number.isFinite(radius) && radius > 0 ? `Approx. ${radius} km radius` : 'Approximate; radius unavailable');
     const flags = [];
     if (node.dataset.vpn === 'true') flags.push('VPN');
     if (node.dataset.proxy === 'true') flags.push('Proxy');
@@ -305,9 +250,7 @@
     }
     const investigate = document.querySelector('#geo-investigate');
     if (investigate) { investigate.href = `/explorer?q=${encodeURIComponent(ip)}`; investigate.classList.remove('disabled'); investigate.setAttribute('aria-disabled','false'); }
-    const note = source === 'simulated-demo'
-      ? 'Demo coordinates are illustrative and do not represent the source IP’s real location.'
-      : 'IP geolocation estimates a network region. It is not GPS and cannot reliably identify a person, device, or street address.';
+    const note = 'IP geolocation estimates a network region. It is not GPS and cannot reliably identify a person, device, or street address.';
     text('#geo-detail-note', note);
     const sessionList = document.querySelector('#geo-detail-session-list');
     if (sessionList) {
