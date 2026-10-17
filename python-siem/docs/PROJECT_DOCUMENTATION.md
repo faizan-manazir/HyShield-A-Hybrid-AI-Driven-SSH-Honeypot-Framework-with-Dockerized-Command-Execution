@@ -15,7 +15,7 @@ It is designed for research, education, honeypot monitoring, and controlled lab 
 - Correlate session behavior into a score from 0 to 100 and a risk band.
 - Raise rule-based alerts and attach selected MITRE ATT&CK technique mappings.
 - Provide overview metrics, live event viewing, alert triage, event search, actor summaries, session evidence, map visualizations, settings, and downloadable standalone HTML security reports.
-- Generate synthetic Cowrie-shaped events locally for testing and demos.
+- Generate operational telemetry-shaped events locally for testing and demos.
 - Expose JSON endpoints and FastAPI's interactive API documentation.
 - Use SQLite without requiring a separate database server or frontend build system.
 
@@ -25,7 +25,7 @@ It is designed for research, education, honeypot monitoring, and controlled lab 
 - IP geolocation is approximate and can reflect VPNs, proxies, cloud egress, or ISP infrastructure.
 - Rule-based scoring can produce false positives and false negatives.
 - MITRE ATT&CK mappings are behavior labels, not attribution.
-- Synthetic events are not real incidents and must not be mixed with evidence.
+- operational telemetry are not real incidents and must not be mixed with evidence.
 - The SIEM now has account authentication and role-based access control. Do not expose it directly to the Internet without a deployment security review, trusted HTTPS ingress, and network restrictions.
 
 ## 2. Architecture at a glance
@@ -95,8 +95,7 @@ The SIEM ingestion pipeline is distinct from the parent project's interactive SS
 | `app/templates/` | Jinja templates for the pages. |
 | `app/static/app.js` | Browser interactions, API requests, and quiet UI refreshes. |
 | `app/static/style.css` | Layout, colors, responsive styles, risk indicators, and dashboard presentation. |
-| `tools/simulate.py` | CLI utility for adding synthetic sessions/events. |
-| `data/` | Default data directory for the log, SQLite database, and settings; created as needed. |
+| | `data/` | Default data directory for the log, SQLite database, and settings; created as needed. |
 | `tests/` | Automated tests, run with pytest. |
 | `requirements.txt` | FastAPI, Uvicorn, Jinja, multipart support, and test dependencies. |
 
@@ -236,7 +235,7 @@ Indexes support common lookups such as raw events by session and timestamp. Exac
 - Back up the database according to the lab's retention needs.
 - Preserve original Cowrie logs separately when they may be evidence.
 - Hash acquired log copies and record acquisition time when following a forensic workflow.
-- Keep demo/synthetic telemetry in a separate log and database.
+- Keep demo/operational telemetry in a separate log and database.
 - Do not treat normalized rows or UI labels as a replacement for the original event record.
 
 ## 9. Correlation, scoring, and alert generation
@@ -282,13 +281,11 @@ The geolocation module classifies IP addresses and performs public-IP lookups th
 
 ### Real-world limitations
 - Private, loopback, and reserved IPs do not have normal public geolocation.
-- In `DEMO_MODE`, private/loopback addresses may be assigned stable simulated locations so the map can be demonstrated.
-- Simulated locations are not real source locations and must not be presented as attribution.
-- Public-IP coordinates are approximate and may identify a provider/network region rather than the operator.
+- - - Public-IP coordinates are approximate and may identify a provider/network region rather than the operator.
 - VPNs, proxies, cloud servers, NAT, and compromised intermediaries can make location misleading.
 - External lookups disclose queried public IP addresses to the geolocation provider.
 
-Set `HYSHIELD_GEO=off` to disable external lookups when network policy or privacy requirements call for it. Document whether map data is real, unresolved, or simulated when exporting screenshots or reports.
+Set `HYSHIELD_GEO=off` to disable external lookups when network policy or privacy requirements call for it. 
 
 ## 12. Charts, map rendering, and browser UI
 
@@ -356,12 +353,6 @@ Disable geolocation:
 HYSHIELD_GEO=off python run.py
 ```
 
-Run a demo bound to all interfaces (only when the environment's access controls make this appropriate):
-
-```bash
-HOST=0.0.0.0 PORT=8000  python run.py
-```
-
 On Windows PowerShell, set variables before starting:
 
 ```powershell
@@ -406,7 +397,7 @@ Open `http://127.0.0.1:8000`. The interactive API explorer is `http://127.0.0.1:
 
 ```bash
 cd python-siem
-DEMO_MODE=true uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Use the forwarded port only for the intended audience. Do not expose sensitive logs or an unauthenticated dashboard publicly.
@@ -461,7 +452,7 @@ A successful command should be judged by the actual test output and exit code; t
 - [ ] Alert actions and settings changes return expected status/results.
 - [ ] Malicious-looking HTML in event fields is rendered as text, not active markup.
 - [ ] Geolocation can be disabled.
-- [ ] Synthetic events are isolated from evidence-bearing logs.
+- [ ] operational telemetry are isolated from evidence-bearing logs.
 - [ ] The dashboard is not remotely reachable without intended access controls.
 
 ## 20. Troubleshooting
@@ -542,7 +533,7 @@ Do not claim tests passed unless they were actually executed.
 - **Alert:** record created by a detection rule/correlation result.
 - **MITRE ATT&CK:** public knowledge base of adversary tactics and techniques.
 - **Geolocation:** approximate network location associated with a public IP address.
-- **TEST-NET:** documentation-reserved IP ranges used for examples and synthetic telemetry.
+- **TEST-NET:** documentation-reserved IP ranges used for examples and operational telemetry.
 - **False positive:** an alert that does not represent the harmful behavior suggested by the rule.
 - **False negative:** harmful behavior that the configured rules do not detect.
 - **Chain of custody:** documented handling of evidence from acquisition through analysis.
