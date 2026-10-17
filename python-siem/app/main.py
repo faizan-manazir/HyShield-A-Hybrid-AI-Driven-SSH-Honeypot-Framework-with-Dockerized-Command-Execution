@@ -295,6 +295,7 @@ async def close_alert(alert_id: str, request: Request):
         if "application/json" in request.headers.get("accept", ""):
             return JSONResponse({"ok": False, "error": "Alert not found."}, status_code=404)
         return PlainTextResponse("Alert not found.", status_code=404)
+    auth.record_audit(request.state.user, "alert_closed", alert_id)
     if "application/json" in request.headers.get("accept", ""):
         return JSONResponse({"ok": True, "id": alert_id, "status": "CLOSED"})
     return RedirectResponse(_safe_next(form.get("next"), "/alerts"), status_code=303)
@@ -372,6 +373,7 @@ async def save_settings(request: Request):
         elif form.get("vtKey"):                       # blank = keep the saved key
             s["vtKey"] = str(form.get("vtKey"))[:200]
     cfg.save(s)
+    auth.record_audit(request.state.user, "settings_updated", str(tab or "global"))
     return RedirectResponse(f"/settings?tab={tab if tab in ('global', 'response', 'intel') else 'global'}&saved=1",
                             status_code=303)
 
@@ -381,6 +383,7 @@ async def purge(request: Request):
     form = await request.form()
     if form.get("confirm") == "PURGE":
         request.app.state.ingestor.purge()
+        auth.record_audit(request.state.user, "database_purged", "SQLite SIEM database")
     return RedirectResponse("/settings?tab=global&saved=1", status_code=303)
 
 
