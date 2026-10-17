@@ -70,9 +70,9 @@ Cowrie JSON-lines log (cowrie.json)
 
 1. Cowrie appends one JSON object per line to its configured log.
 2. The ingestor polls the file, reads new complete lines, parses events, and advances a checkpoint.
-3. Events are stored in SQLite; session records and alert/correlation state are updated.
+3. Events are stored in SQLite; session records and alert/correlation state are updated. Session start and end timestamps are merged without replacing an existing non-null timestamp with an incoming null value.
 4. The correlation engine examines observed session events and commands, calculates component scores, a total score, risk band, summary, and applicable alert/technique metadata.
-5. The query layer provides common database calculations to HTML pages and JSON APIs.
+5. The query layer provides common database calculations to HTML pages and JSON APIs. Event Explorer search and category filtering are applied by the database query before its result limit, so matching older records are not discarded merely because they fall outside a pre-filtered recent-event window.
 6. FastAPI serves Jinja templates and API responses. Python-generated SVG is used for charts/map visualizations; browser JavaScript powers interactions and periodic refreshes.
 7. An analyst opens alerts or sessions and reviews the evidence behind the score.
 
@@ -166,6 +166,18 @@ Within the same severity, newer session timestamps come first. The query sorts t
 The separate Recent Alerts panel is chronological and emphasizes the newest activity. It is useful for monitoring what has just happened, rather than choosing the most urgent investigation.
 
 Severity is a triage aid, not a final verdict. A critical alert should be investigated promptly, but the analyst must review source events and session context before describing the event as a confirmed compromise.
+
+## Dashboard refresh behavior
+
+The refreshable dashboard pages use a **5-second** polling interval. Event Explorer uses the same interval when its Auto-refresh option is enabled. Browser refresh requests update page content in the background rather than forcing a full-page reload.
+
+The JavaScript interval enforces a 5-second minimum. This controls browser polling only; it does not guarantee that every Cowrie record will appear within five seconds because file ingestion, database writes, and query/render time also contribute to end-to-end latency. The refresh setting is emitted by the page route in `app/main.py` and consumed by `app/static/app.js`.
+
+## Event Explorer search and filtering
+
+The query layer applies the selected category and search term in SQL before applying the requested result limit. This avoids the previous behavior in which the app could limit the newest events first and then filter that subset, hiding older records that matched the analyst's search. The result limit is clamped to the supported range, and unknown categories fall back to `ALL`.
+
+Search results are still limited to the configured maximum, so use a narrower query or a different category when investigating a large event set. Search results should be corroborated with the underlying Cowrie log and session evidence.
 
 ## 7. Event ingestion
 
@@ -549,3 +561,8 @@ Do not claim tests passed unless they were actually executed.
 - [SQLite documentation](https://www.sqlite.org/docs.html)
 - [MITRE ATT&CK](https://attack.mitre.org/)
 - [ipwho.is](https://ipwho.is/)
+
+
+## Testing changes
+
+From `python-siem/`, run `python -m pytest -q` to execute the automated suite. Record the actual command output and exit status when validating a change; historical test results do not verify later commits.
