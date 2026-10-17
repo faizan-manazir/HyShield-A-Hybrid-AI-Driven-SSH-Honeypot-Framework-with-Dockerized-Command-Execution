@@ -4,6 +4,7 @@ HyShield SIEM - web app (pages + JSON API) in one FastAPI file.
 Run it:   python run.py
 Open:     http://127.0.0.1:8000        (API docs: http://127.0.0.1:8000/docs)
 """
+import json
 import logging
 import os
 import threading
@@ -475,7 +476,7 @@ async def save_settings(request: Request):
             if not first_line or len(first_line) > 256 * 1024:
                 raise ValueError("The file must begin with a valid Cowrie JSON event.")
             try:
-                first_event = __import__("json").loads(first_line)
+                first_event = json.loads(first_line)
             except (ValueError, UnicodeDecodeError):
                 raise ValueError("The file must begin with a valid Cowrie JSON event.")
             if not isinstance(first_event, dict) or not str(first_event.get("eventid", "")).startswith("cowrie."):
