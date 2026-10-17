@@ -33,7 +33,7 @@
   <section class="card overview-priorities-panel">
     <div class="overview-card-heading"><div><span class="eyebrow">ANALYST WORKSPACE</span><h3>Investigation priorities</h3><p>Live views from the current Cowrie telemetry store</p></div><a href="/alerts">Open alert queue ↗</a></div>
     <div class="overview-priority-list">
-      {% for a in d.recentAlerts %}
+      {% for a in d.priorityAlerts %}
       <article class="overview-priority-item">
         <span class="dot {{ a.severity }}"></span>
         <div class="priority-copy"><div class="priority-title">{{ a.title }}</div><p>{{ a.src_ip or 'Source unknown' }} · {{ a.reason }}</p><div class="priority-meta"><span class="overview-severity {{ a.severity|lower }}">{{ a.severity }}</span><span>{{ a.timestamp|tm }}</span></div></div>
