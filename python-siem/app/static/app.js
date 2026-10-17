@@ -3,54 +3,10 @@
   // Read the current page before any page-specific handlers use it.
   const page = document.body.dataset.page;
 
-  // Restore the content wrapper when the browser returns to a page from its
-  // back/forward cache. Without this, the outgoing transition can leave the
-  // restored page at opacity: 0, making Back appear to show a blank page.
+  // Keep page navigation immediate to avoid a fade-out/reload flicker.
   window.addEventListener('pageshow', () => {
     document.querySelector('.wrap')?.classList.remove('page-leaving');
-    document.querySelectorAll('.reveal-on-scroll').forEach((el) => el.classList.add('is-visible'));
   });
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduceMotion) {
-    document.documentElement.classList.add('motion-ready');
-
-    const revealTargets = document.querySelectorAll(
-      '.page-head, .grid > .card, .wrap > .card, .tabs, .matrix, .settings-panel'
-    );
-    revealTargets.forEach((el, index) => {
-      el.classList.add('reveal-on-scroll');
-      el.style.transitionDelay = `${Math.min(index % 4, 3) * 90}ms`;
-    });
-
-    if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            observer.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.06, rootMargin: '0px 0px -24px 0px' });
-      revealTargets.forEach((el) => observer.observe(el));
-    } else {
-      revealTargets.forEach((el) => el.classList.add('is-visible'));
-    }
-
-    // Gentle navigation transition. The page itself remains fully navigable
-    // if the browser disables motion or JavaScript.
-    document.addEventListener('click', (event) => {
-      const link = event.target.closest('a[href]');
-      if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey ||
-          event.shiftKey || event.altKey || link.target || link.hasAttribute('download')) return;
-      let destination;
-      try { destination = new URL(link.href, window.location.href); } catch (_) { return; }
-      if (destination.origin !== window.location.origin || destination.pathname.startsWith('/static/') ||
-          (destination.pathname === window.location.pathname && destination.search === window.location.search)) return;
-      event.preventDefault();
-      document.querySelector('.wrap')?.classList.add('page-leaving');
-      window.setTimeout(() => { window.location.href = destination.href; }, 260);
-    });
-  }
 
   // Donut slices remain clickable; chart hover tooltips are intentionally disabled.
   document.addEventListener('click', (event) => {
