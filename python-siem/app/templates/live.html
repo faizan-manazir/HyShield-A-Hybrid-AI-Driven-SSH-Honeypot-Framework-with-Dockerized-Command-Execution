@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Live Activity - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Live Activity</h1><p class="sub">A continuously updated stream of Cowrie telemetry for rapid triage and session investigation.</p></div>
+  <span class="live"><i></i>Background updates · 10 seconds</span>
+</div>
+<div class="grid g3 live-summary">
+  <div class="card pad"><div class="label">Events in view</div><div id="live-event-count" class="num">{{ events|length }}</div><p class="muted small-note">Most recent ingested records</p></div>
+  <div class="card pad"><div class="label">Unique source IPs</div><div id="live-source-count" class="num">{{ events|map(attribute='src_ip')|reject('equalto', '')|unique|list|length }}</div><p class="muted small-note">Across the visible event stream</p></div>
+  <div class="card pad"><div class="label">Stream status</div><div class="num status-text">Monitoring</div><p class="muted small-note">The page updates quietly in the background</p></div>
+</div>
+<div class="card live-stream-card">
+  <div class="card-head"><div><h3>Recent telemetry</h3><p class="muted small-note">Newest events appear first. Select a source IP or session to investigate related activity.</p></div><a href="/explorer?auto=1">Open Event Explorer ↗</a></div>
+  <div class="tablewrap scroll">
+    <table class="small live-table"><thead><tr><th>Time (UTC)</th><th>Category</th><th>Event ID</th><th>Source IP</th><th>Session</th><th>Observed activity</th></tr></thead>
+      <tbody id="live-events-body">
+      {% for e in events %}<tr class="mono"><td>{{ e.timestamp|tm }}</td><td><span class="badge {{ e.category }}">{{ e.category }}</span></td><td class="eventid">{{ e.eventid or '-' }}</td><td>{% if e.src_ip %}<a href="/explorer?q={{ e.src_ip }}">{{ e.src_ip }}</a>{% else %}-{% endif %}</td><td>{% if e.session %}<a href="/sessions/{{ e.session }}">{{ e.session[:12] }}{% if e.session|length > 12 %}…{% endif %}</a>{% else %}-{% endif %}</td><td><div class="trunc">{{ e.input or e.username or e.version or e.message or '-' }}</div></td></tr>
+      {% else %}<tr><td colspan="6" class="empty">Waiting for telemetry. New Cowrie events will appear here once they are ingested.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

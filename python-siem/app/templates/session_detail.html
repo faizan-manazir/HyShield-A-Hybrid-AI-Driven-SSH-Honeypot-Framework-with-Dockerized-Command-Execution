@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Session {{ s.id[:8] }} - HyShield{% endblock %}
+{% block content %}
+<div style="margin-bottom:28px">
+  <h1>Session Investigation</h1>
+  <p class="sub">A forensic view of the captured interaction, risk signals, and observed commands for this session.</p>
+  <p class="mono muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em">Session: {{ s.id }}</p>
+  <div class="filters" style="margin-top:16px">
+    <span class="chip">Risk: {{ s.riskLevel }}</span>
+    <span class="chip">Threat score: {{ s.threatScore }}/100</span>
+    <a class="chip" href="/explorer?q={{ s.src_ip }}">Source IP: {{ s.src_ip }}</a>
+    <a class="chip" href="/geomap">{{ s.location.flag }} {{ s.location.city }}, {{ s.location.countryName }}</a>
+    <span class="chip">Duration: {{ s.summary.durationSeconds or 0 }}s</span>
+    <span class="chip">{{ 'Closed' if s.is_closed else 'Still open' }}</span>
+  </div>
+</div>
+
+<div class="grid" style="grid-template-columns: 5fr 7fr">
+  <div class="card story">
+    <h3 style="margin-bottom:28px;letter-spacing:.08em">SESSION TIMELINE</h3>
+    {% for step in s.story %}
+    <div class="step">
+      <div class="pt {{ 'hot' if step.hot }}"></div>
+      <div style="flex:1"><h4>{{ step.stage }}<span>{{ step.time|tm }}</span></h4><p>{{ step.text }}</p></div>
+    </div>
+    {% else %}<div class="muted">No events were captured for this session.</div>{% endfor %}
+  </div>
+
+  <div>
+    <div class="card pad" style="margin-bottom:24px">
+      <h3 style="margin-bottom:16px">Captured command activity</h3>
+      <div class="term">
+        <div class="term-bar"><div class="lights"><i style="background:#f43f5e"></i><i style="background:#f59e0b"></i><i style="background:#10b981"></i></div><span>root@{{ s.src_ip }} — ssh</span></div>
+        <pre>{{ s.tty if s.tty else 'No interactive shell commands were captured for this session.' }}</pre>
+      </div>
+    </div>
+
+    <div class="card pad">
+      <h3 style="margin-bottom:20px">Risk assessment details</h3>
+      {% if s.dimensions %}
+      <div class="dims">
+        <div><small>Access</small><b>{{ s.dimensions.access }}/25</b></div>
+        <div><small>Activity</small><b>{{ s.dimensions.activity }}/25</b></div>
+        <div><small>Execution</small><b>{{ s.dimensions.weaponization }}/25</b></div>
+        <div><small>Intent</small><b>{{ s.dimensions.intent }}/25</b></div>
+      </div>{% endif %}
+      <ul class="why">
+        {% for ex in s.explanations %}
+        <li><span><span class="tag" style="color:#9ca3af;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)">{{ ex.dimension }}</span> {{ ex.reason }}
+          {% if ex.mitre %}<a class="tag" href="/mitre">{{ ex.mitre }}</a>{% endif %}</span>
+          <span class="mono muted">+{{ ex.score }}</span></li>
+        {% else %}<li class="muted"><em>No suspicious indicators were identified by the current scoring rules.</em></li>{% endfor %}
+        <li class="total"><span>Overall threat score</span><span>{{ s.threatScore }} / 100</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+<p><a href="/sessions">← All sessions</a></p>
+{% endblock %}

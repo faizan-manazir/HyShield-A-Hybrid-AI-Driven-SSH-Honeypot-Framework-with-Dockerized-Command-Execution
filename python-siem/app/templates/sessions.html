@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sessions - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>⌨ Session Investigations</h1><p class="sub">Review captured SSH interactions, trace command activity, and assess session risk. {{ sessions|length }} sessions in view.</p></div>
+  <div class="filters"><span class="lbl">Sort by:</span>
+    {% for key, label in [('LATEST', 'Latest Time'), ('THREAT', 'Highest Threat'), ('EVENTS', 'Most Events')] %}
+      <a class="pill {{ 'on' if sort == key }}" href="/sessions?sort={{ key }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+<div class="card tablewrap">
+  <table class="small">
+    <thead><tr><th>Session ID</th><th>Source IP</th><th>Approx. origin</th><th>Risk</th><th>Threat score</th><th>Started (UTC)</th><th>Events</th><th></th></tr></thead>
+    <tbody id="sessions-body">
+    {% for s in sessions %}
+      <tr class="mono">
+        <td><a href="/sessions/{{ s.id }}"><b>{{ s.id[:12] }}</b></a></td>
+        <td><a href="/explorer?q={{ s.src_ip }}">{{ s.src_ip }}</a></td>
+        <td>{{ s.location.flag }} <b style="color:#e5e7eb">{{ s.location.city }}</b>, {{ s.location.countryCode }}</td>
+        <td>{{ risk(s.riskLevel) }}</td>
+        <td><b style="color:#d1d5db">{{ s.threatScore }}</b><span class="muted">/100</span></td>
+        <td>{{ s.start_time|dt }}</td>
+        <td><span class="tag" style="color:#d1d5db;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)">{{ s.eventCount }}</span></td>
+        <td><a href="/sessions/{{ s.id }}">Open investigation →</a></td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="empty">No sessions to review yet. Captured SSH sessions will appear here after ingestion.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}HyShield SIEM{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v=9">
+  <meta name="theme-color" content="#0a1320">
+</head>
+<body data-page="{{ page }}" data-refresh="{{ refresh|default(0) }}">
+{% macro nav(key, href, icon, label) -%}
+  <a class="nav {{ 'active' if page == key }}" href="{{ href }}"><span>{{ icon }}</span>{{ label }}</a>
+{%- endmacro %}
+{% macro risk(level) -%}<span class="badge {{ level or 'LOW' }}">{{ level or 'LOW' }}</span>{%- endmacro %}
+
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="HyShield SIEM home">
+      <div class="brand-icon"><span>H</span><i></i></div>
+      <div><b>HYSHIELD</b><small>SECURITY OPERATIONS CENTER</small></div>
+    </a>
+    <nav>
+      <div class="nav-title">Dashboards</div>
+      {{ nav('overview', '/', '🛡', 'Security Overview') }}
+      {{ nav('live', '/live', '◉', 'Live Activity') }}
+      {{ nav('geomap', '/geomap', '🌐', 'Global Threat Map') }}
+      {{ nav('mitre', '/mitre', '🎯', 'MITRE ATT&amp;CK'|safe) }}
+      <div class="nav-title">Threat Hunting</div>
+      {{ nav('alerts', '/alerts', '⚠', 'Alerts') }}
+      {{ nav('explorer', '/explorer', '🔍', 'Event Explorer') }}
+      {{ nav('actors', '/actors', '👥', 'Actors') }}
+      {{ nav('sessions', '/sessions', '⌨', 'Sessions') }}
+      <div class="nav-title">System</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sensor-mark"><span class="sensor-dot"></span><div><b>HONEYPOT SIEM</b><small>THREAT MONITORING</small></div></div>
+      <div class="bottom">{{ nav('settings', '/settings', '⚙', 'System Settings') }}</div>
+      <div class="sidebar-version">HYSHIELD <span>•</span> DEFENSIVE MONITORING</div>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div class="topbar-context"><span class="topbar-kicker">SECURITY OPERATIONS</span><span class="topbar-slash">/</span><span class="topbar-current">HyShield SIEM</span></div>
+      <div class="topbar-actions"><span class="workspace-pill"><span class="workspace-dot"></span> COWRIE TELEMETRY</span><a class="topbar-search" href="/explorer"><span class="search-glyph">⌕</span> Search telemetry <kbd>/</kbd></a></div>
+    </header>
+    <div class="wrap">{% block content %}{% endblock %}</div>
+    <footer class="app-footer"><span>HYSHIELD SIEM <span class="footer-sep">/</span> SECURITY MONITORING</span><span>Threat investigation workspace</span></footer>
+  </main>
+</div>
+<script src="/static/app.js?v=9" defer></script>
+</body>
+</html>

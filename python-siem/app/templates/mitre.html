@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}MITRE ATT&CK - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>🎯 MITRE ATT&amp;CK Coverage</h1><p class="sub">Explore tactics and techniques associated with observed honeypot activity. Select a technique to inspect the matching events.</p></div>
+</div>
+<div class="matrix">
+  {% for tactic in tactics %}
+  <div class="tactic">
+    <div class="th">{{ tactic.name }}</div>
+    <div class="tb">
+      {% for t in tactic.techniques %}
+      <a class="tech {{ 'hit ' ~ t.severity if t.count }}" href="/explorer?q={{ t.id }}">
+        <b>{{ t.name }}</b>
+        <div class="foot"><span>{{ t.id }}</span>{% if t.count %}<span class="count {{ t.severity }}">{{ t.count }}</span>{% endif %}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

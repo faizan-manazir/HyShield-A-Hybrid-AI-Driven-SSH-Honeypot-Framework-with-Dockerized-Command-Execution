@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Global Threat Intelligence - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>🌐 Global Threat Intelligence</h1>
+    <p class="sub">Investigate source networks, coordinates, risk, and session activity. IP geolocation is an estimate of a network’s region—not a device’s GPS position or a street address.</p></div>
+  <span class="live"><i></i>Quiet live updates · 10s</span>
+</div>
+<div class="grid g4">
+  <div class="card pad stat"><div class="label">Countries observed</div><div id="geo-countries" class="num">{{ d.stats.totalCountries }}</div></div>
+  <div class="card pad stat"><div class="label">Mapped source IPs</div><div id="geo-nodes" class="num">{{ d.stats.mappedNodes }}</div></div>
+  <div class="card pad stat"><div class="label">Events observed</div><div id="geo-events" class="num">{{ d.stats.totalEvents }}</div></div>
+  <div class="card pad stat"><div class="label">Leading source country</div><div id="geo-top-country" class="num" style="font-size:20px;padding-top:12px">{{ d.stats.topCountry }}</div></div>
+</div>
+
+<div class="card pad geo-workspace" style="margin-bottom:24px">
+  <div class="geo-toolbar">
+    <label class="geo-search"><span aria-hidden="true">⌕</span><input id="geo-search" type="search" placeholder="Search IP, city, country, or network…" autocomplete="off" aria-label="Search map sources"></label>
+    <label class="geo-filter-label">Risk
+      <select id="geo-risk-filter" aria-label="Filter by risk level">
+        <option value="ALL">All levels</option><option value="CRITICAL">Critical</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option>
+      </select>
+    </label>
+    <button class="btn secondary" id="geo-fit" type="button" title="Fit all visible sources on the map">Fit sources</button>
+    <button class="btn secondary" id="geo-zoom-in" type="button" aria-label="Zoom in">＋</button>
+    <button class="btn secondary" id="geo-zoom-out" type="button" aria-label="Zoom out">−</button>
+    <button class="btn secondary" id="geo-reset" type="button">Reset view</button>
+    <label class="geo-toggle"><input id="geo-show-routes" type="checkbox" checked> Routes</label>
+  </div>
+  <div class="geo-map-layout">
+    <div class="geo-map-stage">
+      <div id="geo-map-container">{{ map_svg|safe }}</div>
+      <div class="geo-map-hint"><span>Drag to pan</span><span>Scroll to zoom</span><span>Click a marker to inspect</span></div>
+      <div class="legend">
+        {% for lvl in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] %}<span><i style="background:{{ RISK_COLORS[lvl] }}"></i>{{ lvl }}</span>{% endfor %}
+        <span><i style="background:#06b6d4"></i>Honeypot sensor</span>
+      </div>
+      <p id="geo-map-status" class="muted geo-map-status" role="status" aria-live="polite">{{ d.stats.mappedNodes }} source IP(s) mapped. Select any marker to inspect its coordinates and sessions.</p>
+    </div>
+    <aside class="geo-detail card" aria-label="Selected source details">
+      <div class="geo-detail-head"><span class="eyebrow">SOURCE INSPECTION</span><span id="geo-detail-risk" class="badge LOW">SELECT SOURCE</span></div>
+      <h2 id="geo-detail-ip" class="geo-detail-ip">Select a map marker</h2>
+      <p id="geo-detail-location" class="muted">Source location and network details will appear here.</p>
+      <div class="geo-score-row"><span>Threat score</span><strong id="geo-detail-score">—</strong></div>
+      <div class="geo-score-track"><span id="geo-detail-score-bar"></span></div>
+      <div class="geo-detail-grid">
+        <div><span>Latitude</span><strong id="geo-detail-lat">—</strong></div>
+        <div><span>Longitude</span><strong id="geo-detail-lng">—</strong></div>
+        <div><span>Sessions</span><strong id="geo-detail-sessions">—</strong></div>
+        <div><span>Events</span><strong id="geo-detail-events">—</strong></div>
+      </div>
+      <div class="geo-detail-meta"><span>Network / ISP</span><strong id="geo-detail-org">—</strong></div>
+      <div class="geo-detail-meta"><span>Geolocation source</span><strong id="geo-detail-source">—</strong></div>
+      <div class="geo-detail-meta"><span>Accuracy</span><strong id="geo-detail-accuracy">—</strong></div>
+      <div class="geo-detail-meta"><span>Network indicators</span><strong id="geo-detail-indicators">—</strong></div>
+      <div class="geo-detail-actions">
+        <button id="geo-copy-coords" class="btn secondary" type="button" disabled>Copy coordinates</button>
+        <a id="geo-open-map" class="btn secondary disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">Open map ↗</a>
+        <a id="geo-investigate" class="btn primary disabled" href="#" aria-disabled="true">Investigate events →</a>
+      </div>
+      <div class="geo-session-list"><span class="eyebrow">RELATED SESSIONS</span><div id="geo-detail-session-list" class="muted">Select a source to list sessions.</div></div>
+      <p id="geo-detail-note" class="geo-detail-note">Coordinates represent an approximate network location. They do not identify a person's exact physical location.</p>
+    </aside>
+  </div>
+</div>
+
+<div class="card tablewrap" style="margin-bottom:24px">
+  <div class="section-head pad"><div><h2>Mapped Source IPs</h2><p class="muted">Select a row to focus the map on that source. Coordinates are shown as returned by the geolocation provider.</p></div><span id="geo-source-count" class="tag">{{ d.attackNodes|length }} sources</span></div>
+  <table class="small">
+    <thead><tr><th>Source IP</th><th>Estimated location</th><th>Latitude</th><th>Longitude</th><th>Risk</th><th>Score</th><th>Sessions</th><th>Events</th><th>Action</th></tr></thead>
+    <tbody id="geo-sources-body">
+    {% for n in d.attackNodes %}
+      <tr data-geo-row="true" data-ip="{{ n.ip }}" data-city="{{ n.city }}" data-country="{{ n.countryName }}" data-org="{{ n.org }}" data-risk="{{ n.riskLevel }}" tabindex="0">
+        <td class="mono">{{ n.ip }}</td><td>{{ n.flag }} {{ n.city }}, {{ n.countryName }}</td><td class="mono">{{ '%.6f'|format(n.lat) }}</td><td class="mono">{{ '%.6f'|format(n.lng) }}</td>
+        <td><span class="badge {{ n.riskLevel }}">{{ n.riskLevel }}</span></td><td>{{ n.threatScore }}</td><td>{{ n.sessionCount }}</td><td>{{ n.eventCount }}</td>
+        <td><a href="/explorer?q={{ n.ip|urlencode }}">Inspect events →</a></td>
+      </tr>
+    {% else %}<tr><td colspan="9" class="empty">No public source coordinates available yet. Private IPs are not geolocatable unless demo mode is enabled.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card tablewrap">
+  <div class="section-head pad"><div><h2>Country Activity</h2><p class="muted">Aggregated session and event counts by geolocated country.</p></div></div>
+  <table class="small">
+    <thead><tr><th>Source country</th><th>Sessions</th><th>Events</th><th>Share of activity</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th></tr></thead>
+    <tbody id="geo-countries-body">
+    {% for c in d.countries %}
+      <tr><td>{{ c.flag }} {{ c.name }}</td><td>{{ c.sessionCount }}</td><td>{{ c.eventCount }}</td><td>{{ c.percentage }}%</td><td>{{ c.CRITICAL }}</td><td>{{ c.HIGH }}</td><td>{{ c.MEDIUM }}</td><td>{{ c.LOW }}</td></tr>
+    {% else %}<tr><td colspan="8" class="empty">No geographic activity to display yet. Events will appear here once source locations are available.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

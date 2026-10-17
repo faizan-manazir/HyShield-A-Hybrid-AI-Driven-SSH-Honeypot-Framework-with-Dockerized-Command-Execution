@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Test Event Generator · HyShield SIEM{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <div class="eyebrow">LAB UTILITIES / SYNTHETIC TELEMETRY</div>
+    <h1>Test Event Generator</h1>
+    <p class="sub">Create safe, randomized Cowrie-style events to exercise dashboards, alerts, session scoring, and the threat map.</p>
+  </div>
+  <span class="badge MEDIUM">LOCAL TESTING ONLY</span>
+</section>
+
+<div class="grid g3b generator-stats">
+  <article class="card pad"><div class="metric-label">Generator status</div><div id="generator-state" class="metric-value">{{ 'RUNNING' if generator.running else 'IDLE' }}</div><div class="muted">Background event writer</div></article>
+  <article class="card pad"><div class="metric-label">Sessions completed</div><div id="generator-completed" class="metric-value">{{ generator.completed_sessions }}</div><div id="generator-target-label" class="muted">Target: {{ generator.target_sessions }} sessions</div></article>
+  <article class="card pad"><div class="metric-label">Events generated</div><div id="generator-events" class="metric-value">{{ generator.events_written }}</div><div class="muted">Appended to configured Cowrie JSON log</div></article>
+</div>
+
+<div class="grid g2">
+  <section class="card">
+    <div class="card-head"><div><h2>Generate synthetic traffic</h2><p class="muted">Use this tool for UI demos and regression testing.</p></div><span class="icon-chip">⚗</span></div>
+    <div class="pad generator-form">
+      <label for="generator-sessions">Number of sessions</label>
+      <select id="generator-sessions">
+        <option value="1">1 session</option><option value="5">5 sessions</option><option value="10" selected>10 sessions</option><option value="25">25 sessions</option><option value="50">50 sessions</option><option value="100">100 sessions</option>
+      </select>
+      <label for="generator-speed">Generation speed</label>
+      <select id="generator-speed"><option value="normal" selected>Realistic — paced events</option><option value="fast">Fast — no intentional delay</option></select>
+      <div class="generator-actions"><button id="generator-start" class="btn primary" type="button">▶ Start generator</button><button id="generator-stop" class="btn danger" type="button" disabled>■ Stop</button></div>
+      <div id="generator-message" class="generator-message" role="status" aria-live="polite">Ready. Start a run to append synthetic events to the log.</div>
+      <div class="progress-track" aria-label="Generation progress"><div id="generator-progress" class="progress-value" style="width:0%"></div></div>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><div><h2>What gets generated</h2><p class="muted">Events use the same JSON-lines format as Cowrie.</p></div></div>
+    <div class="pad generator-checklist">
+      <div><span class="generator-check">✓</span><div><b>SSH session activity</b><p>Connection, client version, and session close events.</p></div></div>
+      <div><span class="generator-check">✓</span><div><b>Authentication activity</b><p>Randomized login successes and failures with test-only usernames.</p></div></div>
+      <div><span class="generator-check">✓</span><div><b>Command activity</b><p>Reconnaissance, credential discovery, download, miner, and persistence-like command strings for detection testing.</p></div></div>
+      <div><span class="generator-check">✓</span><div><b>Safe reserved IP addresses</b><p>Uses TEST-NET documentation ranges only; geographic locations in demo mode are illustrative.</p></div></div>
+    </div>
+  </section>
+</div>
+<div class="card pad generator-note"><b>Important:</b> Generated events are synthetic and are appended to the configured Cowrie log. They will be ingested and can affect charts, session scores, and alerts just like other log entries. Use a demo/test log rather than a production evidence log.</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Event Explorer - HyShield{% endblock %}
+{% macro table(events) %}
+<div class="card">
+  <div class="tablewrap scroll">
+  <table class="small">
+    <thead><tr><th>Time (UTC)</th><th>Type</th><th>Event ID</th><th>Source IP</th><th>Session</th><th>Observed activity</th></tr></thead>
+    <tbody id="explorer-events-body">
+    {% for e in events %}
+      <tr class="mono">
+        <td>{{ e.timestamp|tm }}</td>
+        <td><span class="badge {{ e.category }}">{{ e.category }}</span></td>
+        <td style="color:var(--cyan-soft)">{{ e.eventid }}</td>
+        <td style="color:#fda4af">{{ e.src_ip or '-' }}</td>
+        <td>{% if e.session %}<a href="/sessions/{{ e.session }}">{{ e.session }}</a>{% else %}-{% endif %}</td>
+        <td><div class="trunc">{{ e.input or e.username or e.version or '-' }}</div>
+          {% if e.mitre_context %}{% for tag in e.mitre_context.split(' | ') %}<span class="tag">{{ tag.split(' ')[0] }}</span>{% endfor %}{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">No matching events. Try a broader search or clear the active filters.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <div><h1>🔍 Event Explorer</h1>
+    <p class="sub">Search and filter captured telemetry by event ID, source IP, session, username, command, or ATT&amp;CK technique. Showing <span id="explorer-event-count">{{ events|length }}</span> events.</p></div>
+  <a class="pill {{ 'on' if auto }}" href="/explorer?q={{ q|urlencode }}&category={{ category }}&auto={{ 0 if auto else 1 }}">Background refresh: {{ 'On' if auto else 'Off' }}</a>
+</div>
+<form class="searchbar" method="get" action="/explorer">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search an IP, session ID, username, command, or T1110…" autofocus>
+  <select name="category">
+    {% for c in ['ALL', 'AUTH', 'CMD', 'SESS', 'INFO'] %}<option value="{{ c }}" {{ 'selected' if c == category }}>{{ c }} EVENTS</option>{% endfor %}
+  </select>
+  <input type="hidden" name="auto" value="{{ auto }}">
+  <button class="btn primary">Search</button>
+  {% if q or category != 'ALL' %}<a class="btn" href="/explorer">Clear</a>{% endif %}
+</form>
+{{ table(events) }}
+{% endblock %}

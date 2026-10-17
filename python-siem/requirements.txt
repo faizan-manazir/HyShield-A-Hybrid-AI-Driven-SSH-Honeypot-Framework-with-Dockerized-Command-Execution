@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn>=0.29
+jinja2>=3.1
+python-multipart>=0.0.9
+# only needed to run the tests:
+pytest>=8
+httpx>=0.27

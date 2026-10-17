@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Alerts - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>⚠ Alert Triage</h1><p class="sub">Prioritize suspicious activity, review supporting evidence, and close alerts when resolved.</p></div>
+  <div class="filters"><span class="lbl">Severity:</span>
+    {% for sev in ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] %}
+      <a class="pill {{ 'on' if severity == sev }}" href="/alerts?severity={{ sev }}">{{ sev }}</a>
+    {% endfor %}
+  </div>
+</div>
+<div class="card tablewrap">
+  <table>
+    <thead><tr><th>Severity</th><th>State</th><th>Detection</th><th>Source IP</th><th>Session</th><th>ATT&amp;CK</th><th>Detected (UTC)</th><th>Action</th></tr></thead>
+    <tbody id="alerts-body">
+    {% for a in alerts %}
+      <tr style="{{ 'opacity:.5' if a.status == 'CLOSED' }}">
+        <td>{{ risk(a.severity) }}</td>
+        <td><span class="badge {{ a.status }}">{{ a.status }}</span></td>
+        <td style="color:#e5e7eb;font-weight:500">{{ a.title }}<div class="muted" style="font-size:11px;font-weight:400">{{ a.reason }}</div></td>
+        <td class="mono"><a href="/explorer?q={{ a.src_ip }}">{{ a.src_ip }}</a></td>
+        <td class="mono"><a href="/sessions/{{ a.session_id }}">{{ a.session_id[:12] }}</a></td>
+        <td>{% if a.mitre %}<span class="tag">{{ a.mitre }}</span>{% endif %}</td>
+        <td class="mono" style="font-size:12px">{{ a.timestamp|dt }}</td>
+        <td>{% if a.status != 'CLOSED' %}
+          <form method="post" action="/alerts/{{ a.id }}/close" data-close-alert>
+            <input type="hidden" name="next" value="/alerts?severity={{ severity }}">
+            <button class="btn ok" title="Mark this alert as resolved">✓ Resolve</button>
+          </form>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="empty">No alerts in this view. Try another severity filter or check back after new activity arrives.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

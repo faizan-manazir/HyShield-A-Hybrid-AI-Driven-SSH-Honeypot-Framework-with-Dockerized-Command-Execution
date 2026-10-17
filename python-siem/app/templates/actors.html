@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Actors - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>👥 Source Intelligence</h1><p class="sub">Investigate <span id="actors-count">{{ actors|length }}</span> unique source IPs observed by the honeypot.</p></div>
+  <div class="filters"><span class="lbl">Sort by:</span>
+    <a class="pill {{ 'on' if sort != 'RISK' }}" href="/actors?sort=EVENTS">Most Events</a>
+    <a class="pill {{ 'on' if sort == 'RISK' }}" href="/actors?sort=RISK">Highest Risk</a>
+  </div>
+</div>
+<div id="actors-grid" class="grid g3b">
+  {% for a in actors %}
+  <div class="card actor-card">
+    <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:16px">
+      <div>
+        <h3><a href="/explorer?q={{ a.ip }}" style="color:#fff">{{ a.ip }}</a></h3>
+        <div class="muted" style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:600">OBSERVED SOURCE IP</div>
+        <div style="margin-top:8px;font-size:13px">{{ a.location.flag }} <b style="color:#e5e7eb">{{ a.location.city }}</b>, {{ a.location.countryName }}</div>
+      </div>
+      <div>{{ risk(a.riskLevel) }}</div>
+    </div>
+    <div class="kv mono" style="margin-bottom:16px;font-size:11px">
+      <div class="row"><span class="muted">Approx. coordinates</span><span>{% if a.location.lat is not none %}[{{ '%.2f'|format(a.location.lat) }}, {{ '%.2f'|format(a.location.lng) }}]{% else %}n/a{% endif %}</span></div>
+      <div class="row"><span class="muted">Network / provider</span><span class="trunc" style="max-width:150px">{{ a.location.org }}</span></div>
+    </div>
+    <div class="grid g2" style="margin-bottom:16px;gap:12px">
+      <div class="kv"><small>Events observed</small><b>{{ a.eventCount }}</b></div>
+      <div class="kv"><small>Sessions</small><b>{{ a.sessionCount }}</b></div>
+    </div>
+    <div class="row mono"><span>First seen</span><span style="color:#d1d5db">{{ a.firstSeen|dt }}</span></div>
+    <div class="row mono"><span>Last seen</span><span style="color:#d1d5db">{{ a.lastSeen|dt }}</span></div>
+    <div class="row mono"><span>Observed span</span><span style="color:#d1d5db">{{ minutes_between(a.firstSeen, a.lastSeen) }} min</span></div>
+  </div>
+  {% else %}<div class="card empty" style="grid-column:1/-1">No source IPs have been recorded yet. Once telemetry arrives, source profiles will appear here.</div>{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Security Operations Overview - HyShield{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Security Operations Overview</h1><p class="sub">A unified view of honeypot activity, emerging threats, and investigation priorities.</p></div>
+  <span class="live"><i></i>Telemetry monitor</span>
+</div>
+
+<div class="grid g4">
+  <div class="card pad stat"><div class="label">Events collected</div><div id="metric-total-events" class="num" style="color:#60a5fa">{{ '{:,}'.format(d.metrics.totalEvents) }}</div></div>
+  <div class="card pad stat"><div class="label">Observed sessions</div><div id="metric-active-sessions" class="num" style="color:#34d399">{{ d.metrics.activeSessions }}</div></div>
+  <div class="card pad stat"><div class="label">Unique source IPs</div><div id="metric-unique-actors" class="num" style="color:#fbbf24">{{ d.metrics.uniqueActors }}</div></div>
+  <div class="card pad stat"><div class="label">Alerts requiring review</div><div id="metric-open-alerts" class="num" style="color:#fb7185">{{ d.metrics.openAlerts }}</div></div>
+</div>
+
+<div class="grid g3">
+  <div class="card pad">
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+      <h3>Activity over time</h3><span class="muted" style="font-size:12px">events per minute (UTC)</span>
+    </div>
+    <div id="overview-timeline">{{ timeline_svg|safe }}</div>
+  </div>
+  <div class="card pad">
+    <h3 style="margin-bottom:12px">Telemetry breakdown</h3>
+    <div id="overview-donut">{{ donut_svg|safe }}</div>
+    <div class="legend">{% for name, value, color in d.categories %}<span><i style="background:{{ color }}"></i>{{ name }} {{ value }}</span>{% endfor %}</div>
+  </div>
+</div>
+
+<div class="grid g3">
+  <div class="card">
+    <div class="card-head"><h3>Priority alerts</h3><a href="/alerts">Review all →</a></div>
+    {% for a in d.recentAlerts %}
+    <div class="alert-row">
+      <span class="dot {{ a.severity }}"></span>
+      <div style="flex:1">
+        <div style="color:#e5e7eb;font-weight:500">{{ a.title }}</div>
+        <div class="muted" style="font-size:12px;margin:4px 0 10px">{{ a.reason }}</div>
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span>
+            <a class="tag" href="/explorer?q={{ a.src_ip }}">{{ a.src_ip }}</a>
+            <a class="tag" href="/sessions/{{ a.session_id }}">SESS:{{ a.session_id[:8] }} ↗</a>
+          </span>
+          <span class="muted mono" style="font-size:11px">{{ a.timestamp|tm }}</span>
+        </div>
+      </div>
+    </div>
+    {% else %}<div class="empty">You’re all caught up. No alerts match the current view.</div>{% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>Most active sources</h3><span><a href="/geomap">Explore map ↗</a> &nbsp; <a href="/actors">View all →</a></span></div>
+    {% for a in d.topActors %}
+    <div class="actor-row">
+      <div>
+        <div class="mono" style="font-weight:700;color:#e5e7eb">{{ a.location.flag }} <a href="/explorer?q={{ a.ip }}">{{ a.ip }}</a></div>
+        <div class="muted" style="font-size:12px">{{ a.location.city }}, {{ a.location.countryCode }} • {{ a.eventCount }} logged events</div>
+      </div>
+      {{ risk(a.riskLevel) }}
+    </div>
+    {% else %}<div class="empty">No source activity has been recorded yet.</div>{% endfor %}
+  </div>
+</div>
+
+<div class="card pad dashboard-note">
+  <div class="dashboard-note-copy"><span class="eyebrow">LIVE TELEMETRY</span><h3>Follow events as they arrive</h3><p class="muted">Review recent Cowrie activity in a dedicated live stream, with source, session, and event context in one place.</p></div>
+  <a class="btn primary" href="/live">Open Live Activity <span aria-hidden="true">→</span></a>
+</div>
+{% endblock %}

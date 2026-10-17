@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Settings - HyShield{% endblock %}
+{% macro toggle(name, on, label, hint) %}
+  <div class="field"><label class="check">
+    <input type="hidden" name="{{ name }}" value="0">
+    <input type="checkbox" name="{{ name }}" value="1" {{ 'checked' if on }}>
+    <span><b>{{ label }}</b>{% if hint %}<span class="hint" style="display:block;margin:2px 0 0">{{ hint }}</span>{% endif %}</span>
+  </label></div>
+{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <div><h1>⚙ System Settings</h1><p class="sub">Configure alert thresholds, retention preferences, response options, and threat-intelligence integrations.</p></div>
+</div>
+{% if saved %}<div class="ok-banner">✓ Settings saved successfully.</div>{% endif %}
+<div class="tabs">
+  <nav>
+    <a class="{{ 'on' if tab == 'global' }}" href="/settings?tab=global">🌐 General</a>
+    <a class="{{ 'on' if tab == 'response' }}" href="/settings?tab=response">🛡 Response</a>
+    <a class="{{ 'on' if tab == 'intel' }}" href="/settings?tab=intel">🗄 Intelligence</a>
+    <a class="{{ 'on' if tab == 'raw' }}" href="/settings?tab=raw">📝 Configuration</a>
+  </nav>
+  <div class="body">
+  {% if tab == 'global' %}
+    <form method="post" action="/settings" class="card pad">
+      <input type="hidden" name="tab" value="global">
+      <h3 style="margin-bottom:24px;letter-spacing:.08em;text-transform:uppercase">Alerting & retention</h3>
+      <div class="field"><label class="f">Alert threshold</label><p class="hint">Events below this threshold remain in the event log but do not create visible alerts. Default: 7.</p>
+        <input type="number" name="alertLevel" value="{{ s.alertLevel }}" min="0" max="15"></div>
+      <div class="field"><label class="f">Event retention (days)</label><p class="hint">Number of days to retain ingested event records.</p>
+        <input type="number" name="logRetention" value="{{ s.logRetention }}" min="1" max="3650"></div>
+      <button class="btn primary">Save settings</button>
+    </form>
+    <form method="post" action="/settings/purge" class="danger-zone" style="margin-top:24px">
+      <h3 style="color:#fb7185;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">⚠ Destructive actions</h3>
+      <p class="hint" style="margin-bottom:14px">Permanently deletes all events, sessions, and alerts from the local database. The source log file remains unchanged. This action cannot be undone.</p>
+      <input type="text" name="confirm" placeholder="Type PURGE to confirm deletion" autocomplete="off" style="max-width:260px;margin-right:10px">
+      <button class="btn danger">Delete stored data</button>
+    </form>
+  {% elif tab == 'response' %}
+    <form method="post" action="/settings" class="card pad">
+      <input type="hidden" name="tab" value="response">
+      <h3 style="margin-bottom:24px;letter-spacing:.08em;text-transform:uppercase">Response configuration</h3>
+      {{ toggle('arEnabled', s.arEnabled, 'Enable active response', 'Configure a response action for suspicious sources. Verify the execution workflow before enabling in a production environment.') }}
+      <div class="field"><label class="f">Response action</label>
+        <select name="arCommand">{% for c in ar_commands %}<option {{ 'selected' if c == s.arCommand }}>{{ c }}</option>{% endfor %}</select></div>
+      <div class="field"><label class="f">Block timeout (seconds)</label><p class="hint">Configured block duration in seconds. Default: 600 seconds (10 minutes).</p>
+        <input type="number" name="arTimeout" value="{{ s.arTimeout }}" min="1" max="86400"></div>
+      <p class="hint">Important: this saves configuration only. Automated blocking is not implemented in this application yet.</p>
+      <button class="btn primary">Save settings</button>
+    </form>
+  {% elif tab == 'intel' %}
+    <form method="post" action="/settings" class="card pad">
+      <input type="hidden" name="tab" value="intel">
+      <h3 style="margin-bottom:24px;letter-spacing:.08em;text-transform:uppercase">Threat-intelligence integrations</h3>
+      {{ toggle('vtEnabled', s.vtEnabled, 'VirusTotal threat feed', '') }}
+      <div class="field"><label class="f">VirusTotal API key</label>
+        <input type="password" name="vtKey" autocomplete="off" placeholder="{{ 'A key is saved - leave blank to keep it' if s.vtKeySet else 'Paste your API key' }}">
+        {% if s.vtKeySet %}<label class="check" style="margin-top:8px"><input type="checkbox" name="clearKey" value="1"> Remove the saved key</label>{% endif %}</div>
+      {{ toggle('otxEnabled', s.otxEnabled, 'AlienVault OTX', 'Open Threat Exchange indicator matching.') }}
+      <p class="hint">API keys are stored locally in data/settings.json and are not displayed after saving. Live indicator lookups are not implemented yet.</p>
+      <button class="btn primary">Save settings</button>
+    </form>
+  {% else %}
+    <div class="card pad"><h3 style="margin-bottom:16px;letter-spacing:.08em;text-transform:uppercase">Generated configuration preview</h3>
+      <pre class="rawconf">{{ raw }}</pre></div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}
