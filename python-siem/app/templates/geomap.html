@@ -33,7 +33,7 @@
       <div class="geo-map-hint"><span>Drag to pan</span><span>Scroll to zoom</span><span>Click a marker to inspect</span></div>
       <div class="legend">
         {% for lvl in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] %}<span><i style="background:{{ RISK_COLORS[lvl] }}"></i>{{ lvl }}</span>{% endfor %}
-        <span><i style="background:#22c55e"></i>Honeypot sensor</span>
+        <span><i style="background:#38bdf8"></i>Honeypot sensor</span>
       </div>
       <p id="geo-map-status" class="muted geo-map-status" role="status" aria-live="polite">{{ d.stats.mappedNodes }} source IP(s) mapped. Select any marker to inspect its coordinates and sessions.</p>
     </div>
