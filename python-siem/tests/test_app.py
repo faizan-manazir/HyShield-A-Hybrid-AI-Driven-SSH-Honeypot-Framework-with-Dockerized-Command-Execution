@@ -318,6 +318,20 @@ def test_protected_routes_require_login_and_setup_closes_after_bootstrap(client)
 
 
 
+
+def test_html_report_download_is_standalone_and_contains_security_summary(client):
+    response = client.get("/reports/export.html")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert response.headers["content-disposition"].startswith("attachment; filename=\"hyshield-security-report-")
+    assert response.headers["cache-control"] == "no-store"
+    assert "<!doctype html>" in response.text.lower()
+    assert "HyShield SIEM Security Report" in response.text
+    assert "TOTAL EVENTS" in response.text
+    assert "Recent Events" in response.text
+    assert "<script" not in response.text.lower()
+
+
 def test_initial_super_admin_setup_is_one_time(monkeypatch, tmp_path):
     from app import db
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "bootstrap.db")
