@@ -5,6 +5,7 @@ Run it:   python run.py
 Open:     http://127.0.0.1:8000        (API docs: http://127.0.0.1:8000/docs)
 """
 import logging
+import os
 import threading
 import time
 from collections import defaultdict, deque
@@ -432,10 +433,10 @@ def _number(value, default, low, high):
 
 
 @app.get("/settings")
-def settings_page(request: Request, tab: str = "global", saved: int = 0):
-    tab = tab if tab in ("global", "response", "intel", "raw") else "global"
+def settings_page(request: Request, tab: str = "global", saved: int = 0, error: str = ""):
+    tab = tab if tab in ("global", "response", "intel", "raw", "source") else "global"
     s = cfg.load()
-    return render(request, "settings.html", "settings", tab=tab, saved=saved, s=cfg.public(s),
+    return render(request, "settings.html", "settings", tab=tab, saved=saved, error=error, s=cfg.public(s),
                   ar_commands=cfg.AR_COMMANDS, raw=cfg.raw_config(s))
 
 
@@ -459,7 +460,33 @@ async def save_settings(request: Request):
             s["vtKey"] = ""
         elif form.get("vtKey"):                       # blank = keep the saved key
             s["vtKey"] = str(form.get("vtKey"))[:200]
+    elif tab == "source":
+        from urllib.parse import quote
+        raw_path = str(form.get("cowrieLogPath", "")).strip()
+        try:
+            new_path = Path(raw_path).expanduser().resolve(strict=True)
+            if not new_path.is_file() or not os.access(new_path, os.R_OK):
+                raise ValueError("Choose an existing, readable Cowrie JSON log file.")
+        except (OSError, RuntimeError, ValueError):
+            return RedirectResponse(
+                "/settings?tab=source&error=" + quote("The path must point to an existing, readable file on the SIEM server."),
+                status_code=303,
+            )
+        generator = getattr(app.state, "event_generator", None)
+        if generator and generator.status().get("running"):
+            return RedirectResponse(
+                "/settings?tab=source&error=" + quote("Stop the test event generator before changing the log source."),
+                status_code=303,
+            )
+        s["cowrieLogPath"] = str(new_path)
     cfg.save(s)
+    if tab == "source":
+        # Switch the tailer immediately. Path changes are serialized with polling,
+        # and checkpoints from a different path are not reused.
+        app.state.ingestor.set_log_path(new_path)
+        if getattr(app.state, "event_generator", None):
+            app.state.event_generator.log_path = new_path
+    
     auth.record_audit(request.state.user, "settings_updated", str(tab or "global"))
     return RedirectResponse(f"/settings?tab={tab if tab in ('global', 'response', 'intel') else 'global'}&saved=1",
                             status_code=303)
