@@ -342,3 +342,28 @@ def test_initial_super_admin_setup_is_one_time(monkeypatch, tmp_path):
     with pytest.raises(ValueError, match="already been completed"):
         auth.create_initial_admin("second-admin", "Second-Admin-Password-2026!")
     assert auth.user_count() == 1
+
+
+def test_login_throttling_returns_429_after_eight_failures(client):
+    from app import main
+    main._clear_login_failures("testclient")
+    for attempt in range(8):
+        response = client.post("/login", data={"username": "not-a-user", "password": "incorrect-password"},
+                               follow_redirects=False)
+    assert response.status_code == 429
+    blocked = client.post("/login", data={"username": "not-a-user", "password": "incorrect-password"},
+                          follow_redirects=False)
+    assert blocked.status_code == 429
+    main._clear_login_failures("testclient")
+
+
+def test_secure_cookie_can_be_forced_for_tls_terminating_proxy(client, monkeypatch):
+    monkeypatch.setattr(config, "COOKIE_SECURE", True)
+    response = client.post("/login", data={"username": app.state.test_admin["username"],
+                                           "password": "Test-Admin-Password-2026!"},
+                           follow_redirects=False)
+    assert response.status_code == 303
+    cookie = response.headers.get("set-cookie", "")
+    assert "Secure" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=strict" in cookie
