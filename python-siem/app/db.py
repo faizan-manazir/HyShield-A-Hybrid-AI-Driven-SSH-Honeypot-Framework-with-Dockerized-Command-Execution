@@ -45,6 +45,15 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     last_offset INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_id   INTEGER,
+    actor_name TEXT,
+    action     TEXT NOT NULL,
+    target     TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
