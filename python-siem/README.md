@@ -14,8 +14,8 @@ On the first run, open the dashboard URL and create the initial **Super Admin** 
 
 The Super Admin can create and disable accounts under **System → User Management**:
 - **Super Admin:** system settings, account management, dashboard, investigations, and administrative actions.
-- **Security Analyst:** dashboard, event/session investigation, alert closure, and synthetic test-event generator; no user management, settings changes, or database purge.
-- **Read-Only Auditor:** read-only investigation views and audit log; cannot change alerts, settings, accounts, or generator state.
+- **Security Analyst:** dashboard, event/session investigation, and alert closure; no user management, settings changes, or database purge.
+- **Read-Only Auditor:** read-only investigation views and audit log; cannot change alerts, settings, or accounts.
 
 Backend route checks enforce these roles; hiding navigation links is only a usability aid. Use HTTPS when accessing through a trusted reverse proxy. Do not expose the app publicly without reviewing deployment controls. The initial setup must be completed before normal dashboard/API use.
 
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-Open **http://127.0.0.1:8000**. A small sample log is included, so you see data straight away.
+Open **http://127.0.0.1:8000**. Configure the SIEM to read your Cowrie JSON log before relying on dashboard results.
 
 **Point it at your real honeypot log**
 
@@ -58,19 +58,6 @@ New log lines are ingested by the background reader; dashboard page refresh is a
 - The browser uses background requests rather than a full-page reload.
 - The JavaScript refresh interval has a **5-second minimum**. This is a UI polling interval, not a guarantee that every new log record will be visible within five seconds; ingestion and processing timing can also affect when data appears.
 - To verify the setting, inspect the page's `data-refresh` attribute and the refresh logic in `app/static/app.js`.
-
-**Generate random test events**
-
-- Open **System → Test Event Generator** in the app to start/stop a run, choose 1–100 sessions, and select realistic or fast generation.
-- The generator writes only synthetic Cowrie-shaped JSON events using reserved TEST-NET IP addresses; it does not send network traffic.
-- Events are appended to the configured Cowrie log and then ingested normally, so they affect event counts, sessions, scores, alerts, and demo maps. Use a test log rather than a production evidence log.
-
-You can also run the original CLI simulator:
-
-```bash
-DEMO_MODE=true python run.py                 # terminal 1
-python tools/simulate.py --count 30          # terminal 2 (adds fake attack sessions)
-```
 
 ## Pages
 
@@ -174,7 +161,7 @@ Historical validation note: the visual-refresh change was previously reported as
 
 The map uses a self-contained SVG world outline (no third-party tile service required). Use the search field and risk filter to narrow sources, click a marker or table row to inspect its IP, estimated coordinates, score, events, sessions and network metadata, use the zoom/pan controls, copy coordinates, open the estimated point in OpenStreetMap, or follow a session link. The map refreshes from JSON in the background without reloading the page and preserves the current zoom and selection where possible.
 
-Public IP coordinates are resolved over HTTPS through `ipwho.is` and cached locally. Private/reserved IPs cannot be geolocated on the public internet; with `DEMO_MODE=true`, their displayed locations are explicitly marked as illustrative demo data. IP geolocation cannot reliably identify a person's precise physical location.
+Public IP coordinates are resolved over HTTPS through `ipwho.is` and cached locally. Private/reserved IPs cannot be geolocated on the public internet and are displayed as private-network sources. IP geolocation cannot reliably identify a person's precise physical location.
 
 ## Investigation prioritization
 
