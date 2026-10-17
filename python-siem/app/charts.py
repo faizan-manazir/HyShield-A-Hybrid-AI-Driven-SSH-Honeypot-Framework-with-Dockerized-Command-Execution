@@ -7,7 +7,7 @@ import math
 from html import escape
 from pathlib import Path
 
-RISK_COLORS = {"CRITICAL": "#f43f5e", "HIGH": "#f97316", "MEDIUM": "#f59e0b", "LOW": "#38bdf8"}
+RISK_COLORS = {"CRITICAL": "#f43f5e", "HIGH": "#f97316", "MEDIUM": "#FDE68A", "LOW": "#38bdf8"}
 
 
 # ---------------------------------------------------------------- area chart
