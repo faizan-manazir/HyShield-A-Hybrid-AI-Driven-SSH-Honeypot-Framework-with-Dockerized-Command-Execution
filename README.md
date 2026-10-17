@@ -8,6 +8,10 @@ HyShield is a hybrid AI-driven SSH honeypot prototype built on top of **Cowrie**
 
 ---
 
+## 📚 Complete project documentation
+
+For the end-to-end guide covering architecture, components, command and telemetry flows, installation, configuration, SIEM, detection logic, security caveats, testing, and troubleshooting, see **[Complete Project Documentation](docs/PROJECT_DOCUMENTATION.md)**.
+
 ## 📌 Architecture
 
 ```text
