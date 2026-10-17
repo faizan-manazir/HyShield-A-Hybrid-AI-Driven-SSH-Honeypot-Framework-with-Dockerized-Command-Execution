@@ -19,13 +19,13 @@
       {% if current_user.role == 'auditor' %}<span class="role-context-tag">READ ONLY</span>{% elif current_user.role == 'super_admin' %}<span class="role-context-tag">FULL ACCESS</span>{% else %}<span class="role-context-tag">OPERATIONS</span>{% endif %}
     </div>
     {% if current_user.role == 'super_admin' %}
-      <p>You have full system access, including account management, settings, audit logs, alert handling, and test event generation.</p>
+      <p>You have full system access, including account management, settings, audit logs, and alert handling.</p>
       <div class="role-context-links"><a href="/users">Manage users ↗</a><a href="/settings">System settings ↗</a><a href="/audit-logs">Review audit logs ↗</a></div>
     {% elif current_user.role == 'analyst' %}
-      <p>Investigate telemetry, review sessions, close alerts, and generate test events. Account administration, system settings, and audit logs are restricted.</p>
-      <div class="role-context-links"><a href="/alerts">Work alert queue ↗</a><a href="/generator">Generate test event ↗</a></div>
+      <p>Investigate telemetry, review sessions, and close alerts. Account administration, system settings, and audit logs are restricted.</p>
+      <div class="role-context-links"><a href="/alerts">Work alert queue ↗</a></div>
     {% else %}
-      <p>You can review telemetry, investigate sessions, and inspect audit logs. This account cannot modify alerts, generate test events, manage users, or change system settings.</p>
+      <p>You can review telemetry, investigate sessions, and inspect audit logs. This account cannot modify alerts, manage users, or change system settings.</p>
       <div class="role-context-links"><a href="/audit-logs">Review audit logs ↗</a><span>Changes disabled for this role</span></div>
     {% endif %}
   </div>
