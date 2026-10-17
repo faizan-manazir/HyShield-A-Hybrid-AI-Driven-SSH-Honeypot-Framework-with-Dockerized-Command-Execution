@@ -255,6 +255,32 @@ def overview_page(request: Request):
                   })
 
 
+@app.get("/reports/export.html")
+def export_html_report(request: Request):
+    """Download a standalone HTML snapshot of current SIEM findings."""
+    generated = datetime.utcnow()
+    data = queries.overview()
+    report_context = {
+        "generated_at": generated.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "metrics": data["metrics"],
+        "alerts": queries.alerts(limit=100),
+        "actors": queries.actors()[:20],
+        "sessions": queries.sessions("LATEST", 50),
+        "events": queries.events(limit=100),
+    }
+    filename = "hyshield-security-report-" + generated.strftime("%Y%m%d-%H%M%S") + ".html"
+    return templates.TemplateResponse(
+        request,
+        "report_export.html",
+        report_context,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @app.get("/live")
 def live_page(request: Request):
     return render(request, "live.html", "live", refresh=5, events=queries.events(100))
