@@ -43,8 +43,8 @@ def area_chart(points, width=720, height=260, color="#06b6d4"):
         out.append(f'<text x="{x(i):.1f}" y="{height - 8}" text-anchor="middle" class="axis">{escape(points[i][0])}</text>')
     out.append(f'<polygon points="{area}" fill="url(#fill)"/>'
                f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="2"/>')
-    for i, (label, v) in enumerate(points):              # hover dots with tooltips
-        out.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="5" class="dot chart-point" tabindex="0" role="button" aria-label="{escape(label)}: {v} events" data-chart-tip="{escape(label)} · {v} events"><title>{escape(label)} - {v} events</title></circle>')
+    for i, (label, v) in enumerate(points):              # visual data points, no hover tooltip
+        out.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="5" class="dot chart-point" aria-hidden="true" pointer-events="none"/>')
     out.append("</svg>")
     return "".join(out)
 
@@ -69,8 +69,8 @@ def donut(slices, size=220):
                        f'stroke-dashoffset="{-offset:.2f}" style="--slice-length:{length:.2f}px;--slice-gap:{gap:.2f}px;--slice-offset:{-offset:.2f}px;animation-delay:{delay}ms" '
                        f'transform="rotate(-90 {size/2} {size/2})" '
                        f'class="donut-slice" data-animated="true" tabindex="0" role="link" data-href="{href}" '
-                       f'aria-label="Open {escape(name)} events, {value}" data-chart-tip="{escape(name)} · {value} events · select to investigate">'
-                       f'<title>{escape(name)}: {value} · select to investigate</title></circle>')
+                       f'aria-label="Open {escape(name)} events, {value}">' 
+                       f'</circle>')
             offset += length
     out.append(f'<text x="{size/2}" y="{size/2 + 2}" text-anchor="middle" class="donut-total">{total:,}</text>'
                f'<text x="{size/2}" y="{size/2 + 20}" text-anchor="middle" class="axis">events</text></svg>')
@@ -175,9 +175,9 @@ def world_map(land, nodes, honeypot):
             f'data-session-ids="{session_ids}" data-start-time="{escape(str(n.get("startTime", "")), quote=True)}" '
             f'data-source="{source}" data-radius-km="{radius_km}" data-private="{str(bool(n.get("isPrivate", False))).lower()}" '
             f'data-vpn="{str(n.get("isVpn", "")).lower()}" data-proxy="{str(n.get("isProxy", "")).lower()}" data-tor="{str(n.get("isTor", "")).lower()}" '
-            f'data-chart-tip="{escape(tip, quote=True)}"><title>{escape(tip)}</title></circle>')
+            f'></circle>')
     out.append('</g>')
-    out.append(f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="7" class="honeypot" data-x="{hx:.1f}" data-y="{hy:.1f}"><title>{escape(honeypot["name"])} · {float(honeypot["lat"]):.5f}, {float(honeypot["lng"]):.5f}</title></circle>')
+    out.append(f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="7" class="honeypot" data-x="{hx:.1f}" data-y="{hy:.1f}"></circle>')
     out.append(f'<text x="{hx + 11:.1f}" y="{hy + 4:.1f}" class="map-label">{escape(honeypot["name"])}</text></svg>')
     return "".join(out)
 
