@@ -427,3 +427,22 @@ def test_cowrie_log_path_rejects_missing_file_and_non_admin(client, tmp_path):
                             follow_redirects=False)
     assert forbidden.status_code == 403
     client.cookies.set(auth.COOKIE_NAME, app.state.test_admin_cookie)
+
+
+def test_settings_are_operational_and_appearance_is_available(client):
+    response = client.get("/settings")
+    assert response.status_code == 200
+    page = response.text
+    assert "Telemetry source" in page
+    assert "Alerting & data retention" in page
+    assert "Color theme" in page
+    assert "Accent color" in page
+    assert "Display density" in page
+    assert "Validate &amp; save source" in page or "Validate & save source" in page
+    # Do not present response actions or threat-intelligence integrations that
+    # the current application does not actually execute.
+    assert "Enable active response" not in page
+    assert "VirusTotal API key" not in page
+    appearance = client.get("/static/appearance.js")
+    assert appearance.status_code == 200
+    assert "hyshield.appearance.v1" in appearance.text
