@@ -59,6 +59,29 @@ def verify_password(password, stored):
         return False
 
 
+def record_audit(actor, action, target=""):
+    conn = db.connect()
+    try:
+        actor_id = actor.get("id") if actor else None
+        actor_name = actor.get("username") if actor else "system"
+        conn.execute("INSERT INTO audit_logs (actor_id, actor_name, action, target) VALUES (?, ?, ?, ?)",
+                     (actor_id, actor_name, action[:100], str(target or "")[:200]))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_audit_logs(limit=200):
+    conn = db.connect()
+    try:
+        return [dict(row) for row in conn.execute(
+            "SELECT id, actor_name, action, target, created_at FROM audit_logs ORDER BY id DESC LIMIT ?",
+            (max(1, min(int(limit), 1000)),)
+        ).fetchall()]
+    finally:
+        conn.close()
+
+
 def create_user(username, password, role):
     username = str(username or "").strip()
     if not 3 <= len(username) <= 64 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for ch in username):
@@ -72,12 +95,15 @@ def create_user(username, password, role):
                      (username, password_hash, role))
         conn.commit()
         row = conn.execute("SELECT id, username, role, active, created_at FROM users WHERE username = ?", (username,)).fetchone()
-        return dict(row)
+        conn.commit()
+        created = dict(row)
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+    record_audit(None, "user_created", f"{created['username']} ({created['role']})")
+    return created
 
 
 def user_count():
@@ -95,8 +121,11 @@ def authenticate(username, password):
     finally:
         conn.close()
     if not row or not verify_password(password or "", row["password_hash"]):
+        record_audit(None, "login_failed", str(username or "")[:64])
         return None
-    return {"id": row["id"], "username": row["username"], "role": row["role"]}
+    user = {"id": row["id"], "username": row["username"], "role": row["role"]}
+    record_audit(user, "login_success", "")
+    return user
 
 
 def list_users():
@@ -123,9 +152,12 @@ def set_user_active(user_id, active, acting_user_id):
                 raise ValueError("At least one active Super Admin must remain.")
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (1 if active else 0, user_id))
         conn.commit()
-        return True
+        changed_user = conn.execute("SELECT username, active FROM users WHERE id = ?", (user_id,)).fetchone()
     finally:
         conn.close()
+    if changed_user:
+        record_audit({"id": acting_user_id, "username": "admin"}, "user_enabled" if active else "user_disabled", changed_user["username"])
+    return True
 
 
 def make_session(user):
