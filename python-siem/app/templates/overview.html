@@ -30,18 +30,6 @@
 </div>
 
 <div class="overview-main-grid">
-  <section class="card overview-map-panel">
-    <div class="overview-card-heading"><div><h3>Real-time Attack Map</h3><p>Geographic view of observed source infrastructure</p></div><a href="/geomap">Open threat map ↗</a></div>
-    <div class="overview-map-stat"><span class="status-dot"></span> MOST ACTIVE SOURCES</div>
-    <div class="overview-country-list">
-      {% for c in geo.countries[:5] %}
-      <div class="overview-country-row"><span class="country-name">{{ c.flag }} {{ c.name }}</span><span class="country-count">{{ c.eventCount }}</span><span class="country-track"><i style="width:{{ c.percentage }}%"></i></span></div>
-      {% else %}<p class="muted">Waiting for geolocated source activity.</p>{% endfor %}
-    </div>
-    <div class="overview-map-visual">{{ map_svg|safe }}</div>
-    <div class="overview-map-legend"><span><i class="legend-high"></i> High risk</span><span><i class="legend-observed"></i> Low risk</span><span><i class="legend-honeypot"></i> Honeypot sensor</span></div>
-  </section>
-
   <section class="card overview-priorities-panel">
     <div class="overview-card-heading"><div><span class="eyebrow">ANALYST WORKSPACE</span><h3>Investigation priorities</h3><p>Live views from the current Cowrie telemetry store</p></div><a href="/alerts">Open alert queue ↗</a></div>
     <div class="overview-priority-list">
@@ -54,6 +42,18 @@
       {% else %}<div class="overview-empty">No open alerts. New detections will appear here when telemetry matches alert rules.</div>{% endfor %}
     </div>
     <a class="overview-footer-link" href="/alerts">Click an alert to inspect its session evidence <span>→</span></a>
+  </section>
+
+  <section class="card overview-map-panel">
+    <div class="overview-card-heading"><div><h3>Real-time Attack Map</h3><p>Geographic view of observed source infrastructure</p></div><a href="/geomap">Open threat map ↗</a></div>
+    <div class="overview-map-stat"><span class="status-dot"></span> MOST ACTIVE SOURCES</div>
+    <div class="overview-country-list">
+      {% for c in geo.countries[:5] %}
+      <div class="overview-country-row"><span class="country-name">{{ c.flag }} {{ c.name }}</span><span class="country-count">{{ c.eventCount }}</span><span class="country-track"><i style="width:{{ c.percentage }}%"></i></span></div>
+      {% else %}<p class="muted">Waiting for geolocated source activity.</p>{% endfor %}
+    </div>
+    <div class="overview-map-visual">{{ map_svg|safe }}</div>
+    <div class="overview-map-legend"><span><i class="legend-high"></i> High risk</span><span><i class="legend-observed"></i> Low risk</span><span><i class="legend-honeypot"></i> Honeypot sensor</span></div>
   </section>
 
   <aside class="overview-side-stack">
