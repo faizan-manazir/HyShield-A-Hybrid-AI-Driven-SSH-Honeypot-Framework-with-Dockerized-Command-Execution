@@ -31,9 +31,6 @@
       {{ nav('actors', '/actors', '👥', 'Actors') }}
       {{ nav('sessions', '/sessions', '⌨', 'Sessions') }}
       <div class="nav-title">System</div>
-      {% if current_user and current_user.role in ('super_admin', 'analyst') %}
-      {{ nav('generator', '/generator', '⚗', 'Test Event Generator') }}
-      {% endif %}
     </nav>
     <div class="sidebar-footer">
       <div class="sensor-mark"><span class="sensor-dot"></span><div><b>HONEYPOT SIEM</b><small>THREAT MONITORING</small></div></div>
