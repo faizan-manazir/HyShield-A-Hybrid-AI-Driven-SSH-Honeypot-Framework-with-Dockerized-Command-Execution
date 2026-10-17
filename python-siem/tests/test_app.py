@@ -33,7 +33,13 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     assert dashboard.status_code == 200
     assert 'href="/live"' in dashboard.text
     assert 'href="/generator"' in dashboard.text
-    assert "Inspect the live Cowrie stream" in dashboard.text
+    assert "Real-time Attack Map" in dashboard.text
+    assert "Investigation priorities" in dashboard.text
+    assert "Telemetry Distribution" in dashboard.text
+    assert "System Status" in dashboard.text
+    assert "Top Source Actors" in dashboard.text
+    assert "sparkline" in dashboard.text
+    assert "interactive-worldmap" in dashboard.text
     live = client.get("/live")
     assert live.status_code == 200
     assert "Recent telemetry" in live.text
@@ -55,6 +61,7 @@ def test_dashboard_charts_are_interactive(client):
     assert 'data-href="/explorer?category=AUTH"' in donut
     assert "chart-tooltip" not in client.get("/static/app.js?v=4").text
     assert "@keyframes app-start" in client.get("/static/style.css?v=4").text
+    assert "#overview-donut .donut" in client.get("/static/style.css?v=12").text
 
 def test_sample_log_was_ingested(client):
     data = client.get("/api/overview/metrics").json()
