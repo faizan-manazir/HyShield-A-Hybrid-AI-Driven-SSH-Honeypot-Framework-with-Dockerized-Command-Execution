@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import threading
+import time
 
 from . import correlation, db
 
@@ -23,6 +24,7 @@ class Ingestor(threading.Thread):
         self.lock = threading.Lock()      # so "purge" and "read" never run together
         self.stop_flag = threading.Event()
         self.stats = {"events": 0, "errors": 0}
+        self._last_retention_cleanup = 0.0
 
     # ---- thread loop ----------------------------------------------------
     def run(self):
@@ -39,8 +41,16 @@ class Ingestor(threading.Thread):
 
     # ---- one pass -------------------------------------------------------
     def poll(self):
-        """Read everything new in the log file. Returns number of lines stored."""
+        """Read new log lines and periodically enforce configured telemetry retention."""
         with self.lock:
+            now = time.monotonic()
+            if now - self._last_retention_cleanup >= 3600:
+                try:
+                    from . import settings
+                    db.cleanup_retention(settings.load().get("logRetention", 90))
+                    self._last_retention_cleanup = now
+                except Exception:
+                    log.exception("retention cleanup failed")
             if not os.path.exists(self.log_path):
                 return 0
             st = os.stat(self.log_path)
