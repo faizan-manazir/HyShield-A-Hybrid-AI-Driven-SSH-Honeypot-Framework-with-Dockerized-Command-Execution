@@ -106,6 +106,32 @@ def create_user(username, password, role, actor=None):
     return created
 
 
+def create_initial_admin(username, password):
+    """Atomically create the one-time bootstrap account."""
+    username = str(username or "").strip()
+    if not 3 <= len(username) <= 64 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for ch in username):
+        raise ValueError("Username must be 3–64 characters and use only letters, numbers, dot, underscore, or hyphen.")
+    password_hash = hash_password(password)
+    conn = db.connect()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] != 0:
+            conn.rollback()
+            raise ValueError("Initial setup has already been completed. Sign in instead.")
+        conn.execute("INSERT INTO users (username, password_hash, role, active, created_at) VALUES (?, ?, 'super_admin', 1, CURRENT_TIMESTAMP)",
+                     (username, password_hash))
+        row = conn.execute("SELECT id, username, role, active, created_at FROM users WHERE username = ?", (username,)).fetchone()
+        conn.commit()
+        created = dict(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    record_audit(None, "initial_super_admin_created", created["username"])
+    return created
+
+
 def user_count():
     conn = db.connect()
     try:
