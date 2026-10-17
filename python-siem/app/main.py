@@ -128,9 +128,23 @@ async def safety(request: Request, call_next):
         if origin:
             try:
                 parsed_origin = urlparse(origin)
+                request_host = urlparse("//" + request.headers.get("host", ""))
+                origin_hostname = (parsed_origin.hostname or "").lower()
+                request_hostname = (request_host.hostname or "").lower()
+                origin_port = parsed_origin.port or (443 if parsed_origin.scheme == "https" else 80)
+                request_port = request_host.port or (443 if parsed_origin.scheme == "https" else 80)
+                # Browsers may reach the same local server through either localhost
+                # or 127.0.0.1. Treat these as equivalent only for loopback aliases
+                # on the same port; keep strict host+port validation for other hosts.
+                loopback_names = {"localhost", "127.0.0.1", "::1"}
+                same_host = origin_hostname == request_hostname
+                same_loopback = (origin_hostname in loopback_names
+                                 and request_hostname in loopback_names)
                 if (parsed_origin.scheme not in ("http", "https")
                         or not parsed_origin.netloc
-                        or parsed_origin.netloc.lower() != request.headers.get("host", "").lower()):
+                        or not request_host.hostname
+                        or origin_port != request_port
+                        or not (same_host or same_loopback)):
                     return PlainTextResponse("Cross-origin request blocked", status_code=403)
             except (TypeError, ValueError):
                 return PlainTextResponse("Invalid request origin", status_code=403)
