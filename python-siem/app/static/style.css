@@ -724,9 +724,9 @@ input::placeholder, textarea::placeholder { color: #8fa2b9; opacity: 1; }
 #geo-map-container { position:relative; overflow:hidden; border:1px solid rgba(148,172,204,.13); border-radius:12px; background:radial-gradient(ellipse at 50% 42%,#13243a,#08111e 78%); }
 #geo-map-container .interactive-worldmap { display:block; width:100%; min-height:310px; max-height:570px; height:auto; background:transparent; cursor:grab; touch-action:none; user-select:none; }
 #geo-map-container .interactive-worldmap.is-panning { cursor:grabbing; }
-#geo-map-container .geo-node { cursor:pointer; stroke-width:1.8; transition:r .18s ease,fill-opacity .18s ease,stroke-width .18s ease,filter .18s ease; outline:none; }
-#geo-map-container .geo-node:hover,#geo-map-container .geo-node:focus-visible { r:10px; fill-opacity:1; stroke:#fff; stroke-width:2.5; filter:drop-shadow(0 0 6px currentColor); }
-#geo-map-container .geo-node.is-selected { stroke:#fff; stroke-width:3; fill-opacity:1; filter:drop-shadow(0 0 8px currentColor); }
+#geo-map-container .geo-node { cursor:pointer; pointer-events:all; stroke-width:8; stroke-opacity:.28; transition:r .18s ease,fill-opacity .18s ease,stroke-width .18s ease,filter .18s ease,stroke-opacity .18s ease; outline:none; }
+#geo-map-container .geo-node:hover,#geo-map-container .geo-node:focus-visible { r:11px; fill-opacity:1; stroke:#fff; stroke-opacity:1; stroke-width:3; filter:drop-shadow(0 0 7px currentColor); }
+#geo-map-container .geo-node.is-selected { r:11px; stroke:#fff; stroke-opacity:1; stroke-width:3; fill-opacity:1; filter:drop-shadow(0 0 8px currentColor); }
 #geo-map-container .arc { pointer-events:none; }
 .geo-map-hint { display:flex; justify-content:center; flex-wrap:wrap; gap:16px; padding:9px 4px 0; color:#8da0b8; font-size:11px; }
 .geo-map-hint span::before { content:'•'; color:#38bdf8; margin-right:6px; }
