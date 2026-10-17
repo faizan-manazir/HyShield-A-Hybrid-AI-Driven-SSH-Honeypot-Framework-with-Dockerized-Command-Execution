@@ -35,6 +35,10 @@ def _secret():
                 stream.write(secret)
         except FileExistsError:
             secret = path.read_bytes()
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
     return secret
 
 
