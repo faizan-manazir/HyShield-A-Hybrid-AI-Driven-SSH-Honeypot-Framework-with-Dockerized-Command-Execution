@@ -3,96 +3,12 @@
   // Read the current page before any page-specific handlers use it.
   const page = document.body.dataset.page;
 
-  // Restore the content wrapper when the browser returns to a page from its
-  // back/forward cache. Without this, the outgoing transition can leave the
-  // restored page at opacity: 0, making Back appear to show a blank page.
+  // Keep page navigation immediate to avoid a fade-out/reload flicker.
   window.addEventListener('pageshow', () => {
     document.querySelector('.wrap')?.classList.remove('page-leaving');
-    document.querySelectorAll('.reveal-on-scroll').forEach((el) => el.classList.add('is-visible'));
   });
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduceMotion) {
-    document.documentElement.classList.add('motion-ready');
 
-    const revealTargets = document.querySelectorAll(
-      '.page-head, .grid > .card, .wrap > .card, .tabs, .matrix, .settings-panel'
-    );
-    revealTargets.forEach((el, index) => {
-      el.classList.add('reveal-on-scroll');
-      el.style.transitionDelay = `${Math.min(index % 4, 3) * 90}ms`;
-    });
-
-    if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            observer.unobserve(entry.target);
-          }
-        });
-      }, { threshold: 0.06, rootMargin: '0px 0px -24px 0px' });
-      revealTargets.forEach((el) => observer.observe(el));
-    } else {
-      revealTargets.forEach((el) => el.classList.add('is-visible'));
-    }
-
-    // Gentle navigation transition. The page itself remains fully navigable
-    // if the browser disables motion or JavaScript.
-    document.addEventListener('click', (event) => {
-      const link = event.target.closest('a[href]');
-      if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey ||
-          event.shiftKey || event.altKey || link.target || link.hasAttribute('download')) return;
-      let destination;
-      try { destination = new URL(link.href, window.location.href); } catch (_) { return; }
-      if (destination.origin !== window.location.origin || destination.pathname.startsWith('/static/') ||
-          (destination.pathname === window.location.pathname && destination.search === window.location.search)) return;
-      event.preventDefault();
-      document.querySelector('.wrap')?.classList.add('page-leaving');
-      window.setTimeout(() => { window.location.href = destination.href; }, 260);
-    });
-  }
-
-  // Accessible chart interactions: rich hover/focus tooltips and drill-down from donut slices.
-  let chartTooltip = document.querySelector('.chart-tooltip');
-  if (!chartTooltip) {
-    chartTooltip = document.createElement('div');
-    chartTooltip.className = 'chart-tooltip';
-    chartTooltip.setAttribute('role', 'status');
-    chartTooltip.setAttribute('aria-live', 'polite');
-    document.body.appendChild(chartTooltip);
-  }
-  const hideChartTooltip = () => chartTooltip.classList.remove('is-visible');
-  const showChartTooltip = (target, x, y) => {
-    const message = target && target.getAttribute('data-chart-tip');
-    if (!message) return;
-    chartTooltip.textContent = message;
-    chartTooltip.classList.add('is-visible');
-    const left = Math.min(Math.max(12, x + 14), window.innerWidth - chartTooltip.offsetWidth - 12);
-    const top = Math.min(Math.max(12, y + 14), window.innerHeight - chartTooltip.offsetHeight - 12);
-    chartTooltip.style.left = `${left}px`;
-    chartTooltip.style.top = `${top}px`;
-  };
-  document.addEventListener('pointerover', (event) => {
-    const target = event.target.closest('[data-chart-tip]');
-    if (target) showChartTooltip(target, event.clientX, event.clientY);
-  });
-  document.addEventListener('pointermove', (event) => {
-    const target = event.target.closest('[data-chart-tip]');
-    if (target && chartTooltip.classList.contains('is-visible')) showChartTooltip(target, event.clientX, event.clientY);
-  });
-  document.addEventListener('pointerout', (event) => {
-    if (event.target.closest('[data-chart-tip]') && !event.relatedTarget?.closest?.('[data-chart-tip]')) hideChartTooltip();
-  });
-  document.addEventListener('focusin', (event) => {
-    const target = event.target.closest('[data-chart-tip]');
-    if (target) {
-      const rect = target.getBoundingClientRect();
-      showChartTooltip(target, rect.left + rect.width / 2, rect.top + rect.height / 2);
-    }
-  });
-  document.addEventListener('focusout', (event) => {
-    if (event.target.closest('[data-chart-tip]')) hideChartTooltip();
-  });
+  // Donut slices remain clickable; chart hover tooltips are intentionally disabled.
   document.addEventListener('click', (event) => {
     const target = event.target.closest('.donut-slice[data-href]');
     if (target) window.location.href = target.getAttribute('data-href');
@@ -102,12 +18,6 @@
     if (target && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       window.location.href = target.getAttribute('data-href');
-    }
-    const point = event.target.closest('.chart-point[data-chart-tip]');
-    if (point && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      const rect = point.getBoundingClientRect();
-      showChartTooltip(point, rect.left + rect.width / 2, rect.top + rect.height / 2);
     }
   });
 
@@ -239,9 +149,7 @@
     return response.json();
   }
   async function updateOverview() {
-    const [data, chartData] = await Promise.all([
-      getJSON('/api/overview/metrics'), getJSON('/api/overview/charts')
-    ]);
+    const data = await getJSON('/api/overview/refresh');
     text('#metric-total-events', Number(data.metrics.totalEvents).toLocaleString());
     text('#metric-active-sessions', data.metrics.activeSessions);
     text('#metric-unique-actors', data.metrics.uniqueActors);
@@ -249,12 +157,12 @@
     // Replace chart SVGs only; surrounding panels, scroll, and page state persist.
     const timeline = document.querySelector('#overview-timeline');
     const donut = document.querySelector('#overview-donut');
-    if (timeline && typeof chartData.timeline_svg === 'string') timeline.innerHTML = chartData.timeline_svg;
-    if (donut && typeof chartData.donut_svg === 'string') {
+    if (timeline && typeof data.timeline_svg === 'string') timeline.innerHTML = data.timeline_svg;
+    if (donut && typeof data.donut_svg === 'string') {
       // Animate the breakdown when the page first opens, but don't replay the
       // entrance animation on every quiet 10-second background data refresh.
       const parsedDonut = document.createElement('template');
-      parsedDonut.innerHTML = chartData.donut_svg;
+      parsedDonut.innerHTML = data.donut_svg;
       parsedDonut.content.querySelectorAll('.donut-slice[data-animated="true"]').forEach((slice) => {
         slice.removeAttribute('data-animated');
       });
@@ -611,6 +519,14 @@
       refreshing = false;
     }
   }
+  // The slash key advertised in the top bar opens Event Explorer.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target && target.matches('input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    window.location.href = '/explorer';
+  });
   if (page === 'geomap') initGeoControls();
   window.setInterval(refreshData, Math.max(10, refreshSeconds) * 1000);
 })();

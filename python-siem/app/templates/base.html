@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}HyShield SIEM{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="/static/style.css?v=22">
   <meta name="theme-color" content="#0a1320">
 </head>
 <body data-page="{{ page }}" data-refresh="{{ refresh|default(0) }}">
@@ -31,6 +31,7 @@
       {{ nav('actors', '/actors', '👥', 'Actors') }}
       {{ nav('sessions', '/sessions', '⌨', 'Sessions') }}
       <div class="nav-title">System</div>
+      {{ nav('generator', '/generator', '⚗', 'Test Event Generator') }}
     </nav>
     <div class="sidebar-footer">
       <div class="sensor-mark"><span class="sensor-dot"></span><div><b>HONEYPOT SIEM</b><small>THREAT MONITORING</small></div></div>
@@ -47,6 +48,6 @@
     <footer class="app-footer"><span>HYSHIELD SIEM <span class="footer-sep">/</span> SECURITY MONITORING</span><span>Threat investigation workspace</span></footer>
   </main>
 </div>
-<script src="/static/app.js?v=9" defer></script>
+<script src="/static/app.js?v=12" defer></script>
 </body>
 </html>

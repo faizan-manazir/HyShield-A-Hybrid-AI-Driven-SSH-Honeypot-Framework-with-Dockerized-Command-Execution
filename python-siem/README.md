@@ -1,5 +1,7 @@
 # HyShield SIEM Dashboard (Python version)
 
+> **Full documentation:** [Project architecture, configuration, data flow, detection logic, routes, deployment, testing, and troubleshooting](docs/PROJECT_DOCUMENTATION.md).
+
 The same dashboard as the Node.js + Next.js/TypeScript version, rebuilt as **one Python app**.
 No Node, no npm, no TypeScript, and no frontend build step. A small amount of plain JavaScript powers chart interactions and quiet live updates.
 
@@ -11,9 +13,17 @@ MITRE ATT&CK and shows everything in a web dashboard.
 You need Python 3.10 or newer.
 
 ```bash
-cd hyshield-siem-py
+cd python-siem
 python -m venv .venv
-source .venv/bin/activate          # Windows:  .venv\Scripts\activate
+source .venv/bin/activate
+pip install -r requirements.txt
+python run.py
+```
+
+For Windows PowerShell, use these commands instead of the activation line above:
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python run.py
 ```
@@ -120,7 +130,7 @@ Replace the old `siem-dashboard/` folder with the contents of this folder, delet
 
 The dashboard now uses a refined dark SOC-console theme with a clearer visual hierarchy, updated sidebar and navigation states, a compact context bar, more consistent cards/tables/forms, improved spacing and typography, visible keyboard focus states, reduced-motion support, and responsive layouts for smaller screens. This refresh is presentation-only: existing FastAPI routes, templates, data processing, and features are retained.
 
-Validation after the visual refresh: `python -m pytest -q` (39 tests passed).
+Historical validation note: the visual-refresh change was previously reported as passing `python -m pytest -q` with 39 tests at that time. This is not a test result for the current branch or its later changes; rerun the suite and use the actual exit code/output to confirm current status.
 
 ### Refresh and motion behavior
 
@@ -136,3 +146,7 @@ Validation after the visual refresh: `python -m pytest -q` (39 tests passed).
 The map uses a self-contained SVG world outline (no third-party tile service required). Use the search field and risk filter to narrow sources, click a marker or table row to inspect its IP, estimated coordinates, score, events, sessions and network metadata, use the zoom/pan controls, copy coordinates, open the estimated point in OpenStreetMap, or follow a session link. The map refreshes from JSON in the background without reloading the page and preserves the current zoom and selection where possible.
 
 Public IP coordinates are resolved over HTTPS through `ipwho.is` and cached locally. Private/reserved IPs cannot be geolocated on the public internet; with `DEMO_MODE=true`, their displayed locations are explicitly marked as illustrative demo data. IP geolocation cannot reliably identify a person's precise physical location.
+
+## Investigation prioritization
+
+The Overview's **Investigation Priorities** panel sorts open alerts by severity (critical to low), then by newest timestamp within each severity. The separate **Recent Alerts** panel remains chronological.

@@ -7,11 +7,11 @@ import math
 from html import escape
 from pathlib import Path
 
-RISK_COLORS = {"CRITICAL": "#f43f5e", "HIGH": "#f97316", "MEDIUM": "#f59e0b", "LOW": "#38bdf8"}
+RISK_COLORS = {"CRITICAL": "#f43f5e", "HIGH": "#f97316", "MEDIUM": "#FDE68A", "LOW": "#22c55e"}
 
 
 # ---------------------------------------------------------------- area chart
-def area_chart(points, width=720, height=260, color="#06b6d4"):
+def area_chart(points, width=720, height=210, color="#06b6d4"):
     """points = [(label, number), ...]"""
     left, right, top, bottom = 38, 12, 12, 30
     if not points:
@@ -43,14 +43,34 @@ def area_chart(points, width=720, height=260, color="#06b6d4"):
         out.append(f'<text x="{x(i):.1f}" y="{height - 8}" text-anchor="middle" class="axis">{escape(points[i][0])}</text>')
     out.append(f'<polygon points="{area}" fill="url(#fill)"/>'
                f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="2"/>')
-    for i, (label, v) in enumerate(points):              # hover dots with tooltips
-        out.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="5" class="dot chart-point" tabindex="0" role="button" aria-label="{escape(label)}: {v} events" data-chart-tip="{escape(label)} · {v} events"><title>{escape(label)} - {v} events</title></circle>')
+    for i, (label, v) in enumerate(points):              # visual data points, no hover tooltip
+        out.append(f'<circle cx="{x(i):.1f}" cy="{y(v):.1f}" r="5" class="dot chart-point" aria-hidden="true" pointer-events="none"/>')
     out.append("</svg>")
     return "".join(out)
 
 
+# ---------------------------------------------------------------- sparkline
+def sparkline(points, color="#60a5fa", width=112, height=28):
+    """Small decorative trend line from the same recent-event buckets as the main timeline."""
+    values = [float(value) for _, value in points]
+    if not values:
+        return f'<svg viewBox="0 0 {width} {height}" class="sparkline" aria-hidden="true"></svg>'
+    low, high = min(values), max(values)
+    span = high - low or 1
+    inset = 2
+    coords = []
+    for i, value in enumerate(values):
+        x = inset + (width - inset * 2) * i / max(1, len(values) - 1)
+        y = height - inset - (height - inset * 2) * (value - low) / span
+        coords.append(f"{x:.1f},{y:.1f}")
+    return (f'<svg viewBox="0 0 {width} {height}" class="sparkline" aria-hidden="true">'
+            f'<polyline points="{" ".join(coords)}" fill="none" stroke="{color}" '
+            f'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>'
+            f'</svg>')
+
+
 # --------------------------------------------------------------------- donut
-def donut(slices, size=220):
+def donut(slices, size=180):
     """slices = [(name, value, color), ...]"""
     total = sum(v for _, v, _ in slices)
     radius, stroke = 74, 24
@@ -69,8 +89,8 @@ def donut(slices, size=220):
                        f'stroke-dashoffset="{-offset:.2f}" style="--slice-length:{length:.2f}px;--slice-gap:{gap:.2f}px;--slice-offset:{-offset:.2f}px;animation-delay:{delay}ms" '
                        f'transform="rotate(-90 {size/2} {size/2})" '
                        f'class="donut-slice" data-animated="true" tabindex="0" role="link" data-href="{href}" '
-                       f'aria-label="Open {escape(name)} events, {value}" data-chart-tip="{escape(name)} · {value} events · select to investigate">'
-                       f'<title>{escape(name)}: {value} · select to investigate</title></circle>')
+                       f'aria-label="Open {escape(name)} events, {value}">' 
+                       f'</circle>')
             offset += length
     out.append(f'<text x="{size/2}" y="{size/2 + 2}" text-anchor="middle" class="donut-total">{total:,}</text>'
                f'<text x="{size/2}" y="{size/2 + 20}" text-anchor="middle" class="axis">events</text></svg>')
@@ -147,7 +167,7 @@ def world_map(land, nodes, honeypot):
     for n in nodes:
         x, y = project(n["lat"], n["lng"])
         mx, my = (x + hx) / 2, min(y, hy) - abs(x - hx) * 0.18 - 12
-        color = RISK_COLORS.get(n["riskLevel"], RISK_COLORS["LOW"])
+        color = RISK_COLORS.get(str(n.get("riskLevel", "LOW")).upper(), RISK_COLORS["LOW"])
         out.append(f'<path d="M{x:.1f},{y:.1f} Q{mx:.1f},{my:.1f} {hx:.1f},{hy:.1f}" class="arc" stroke="{color}" data-ip="{escape(str(n.get("ip", "")), quote=True)}" data-risk="{escape(str(n.get("riskLevel", "LOW")), quote=True)}"/>')
     out.append('</g><g class="map-nodes">')
     for n in nodes:
@@ -159,7 +179,7 @@ def world_map(land, nodes, honeypot):
         city = escape(str(n.get("city", "Unknown")), quote=True)
         country = escape(str(n.get("countryName", "Unknown")), quote=True)
         org = escape(str(n.get("org", "Unknown network")), quote=True)
-        risk = escape(str(n.get("riskLevel", "LOW")), quote=True)
+        risk = escape(str(n.get("riskLevel", "LOW")).upper(), quote=True)
         source = escape(str(n.get("source", "unknown")), quote=True)
         radius_km = "" if n.get("accuracyRadiusKm") is None else str(n["accuracyRadiusKm"])
         session_ids = escape(",".join(str(v) for v in n.get("sessionIds", [])[:20]), quote=True)
@@ -175,9 +195,9 @@ def world_map(land, nodes, honeypot):
             f'data-session-ids="{session_ids}" data-start-time="{escape(str(n.get("startTime", "")), quote=True)}" '
             f'data-source="{source}" data-radius-km="{radius_km}" data-private="{str(bool(n.get("isPrivate", False))).lower()}" '
             f'data-vpn="{str(n.get("isVpn", "")).lower()}" data-proxy="{str(n.get("isProxy", "")).lower()}" data-tor="{str(n.get("isTor", "")).lower()}" '
-            f'data-chart-tip="{escape(tip, quote=True)}"><title>{escape(tip)}</title></circle>')
+            f'></circle>')
     out.append('</g>')
-    out.append(f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="7" class="honeypot" data-x="{hx:.1f}" data-y="{hy:.1f}"><title>{escape(honeypot["name"])} · {float(honeypot["lat"]):.5f}, {float(honeypot["lng"]):.5f}</title></circle>')
+    out.append(f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="7" class="honeypot" data-x="{hx:.1f}" data-y="{hy:.1f}"></circle>')
     out.append(f'<text x="{hx + 11:.1f}" y="{hy + 4:.1f}" class="map-label">{escape(honeypot["name"])}</text></svg>')
     return "".join(out)
 

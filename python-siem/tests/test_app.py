@@ -2,9 +2,10 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from app import charts, config
-from app.main import app
+from app.main import app, _is_local_request
 
 
 @pytest.fixture(scope="module")
@@ -32,7 +33,14 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     dashboard = client.get("/")
     assert dashboard.status_code == 200
     assert 'href="/live"' in dashboard.text
-    assert "Follow events as they arrive" in dashboard.text
+    assert 'href="/generator"' in dashboard.text
+    assert "Real-time Attack Map" in dashboard.text
+    assert "Investigation priorities" in dashboard.text
+    assert "Telemetry Distribution" in dashboard.text
+    assert "System Status" in dashboard.text
+    assert "Top Source Actors" in dashboard.text
+    assert "sparkline" in dashboard.text
+    assert "interactive-worldmap" in dashboard.text
     live = client.get("/live")
     assert live.status_code == 200
     assert "Recent telemetry" in live.text
@@ -48,15 +56,17 @@ def test_dashboard_charts_are_interactive(client):
     area = charts.area_chart([("12:00", 2), ("12:01", 5)])
     donut = charts.donut([("AUTH", 3, "#8b5cf6"), ("CMD", 2, "#f97316")])
     assert 'class="dot chart-point"' in area
-    assert 'data-chart-tip="12:00 · 2 events"' in area
+    assert 'data-chart-tip' not in area
+    assert '<title>' not in area
     assert 'class="donut-slice"' in donut
     assert 'data-href="/explorer?category=AUTH"' in donut
-    assert "chart-tooltip" in client.get("/static/app.js?v=4").text
+    assert "chart-tooltip" not in client.get("/static/app.js?v=4").text
     assert "@keyframes app-start" in client.get("/static/style.css?v=4").text
+    assert "#overview-donut .donut" in client.get("/static/style.css?v=12").text
 
 def test_sample_log_was_ingested(client):
     data = client.get("/api/overview/metrics").json()
-    assert data["metrics"]["totalEvents"] == 58
+    assert data["metrics"]["totalEvents"] >= 58  # persistent local DB may contain events from earlier runs
     assert len(client.get("/api/sessions").json()) >= 6
 
 
@@ -117,7 +127,7 @@ def test_csp_allows_only_same_origin_bundled_scripts(client):
     response = client.get("/")
     assert "script-src 'self'" in response.headers["content-security-policy"]
     assert "script-src 'none'" not in response.headers["content-security-policy"]
-    assert '<script src="/static/app.js?v=9" defer></script>' in response.text
+    assert '<script src="/static/app.js?v=12" defer></script>' in response.text
     assert 'http-equiv="refresh"' not in response.text
     assert 'data-refresh="10"' in response.text
 
@@ -143,6 +153,23 @@ def test_purge_requires_confirmation(client):
     client.post("/settings/purge", data={"confirm": "PURGE"})
     assert client.get("/api/overview/metrics").json()["metrics"]["totalEvents"] == 0
     assert app.state.ingestor.poll() == 0                    # old lines are not re-read
+
+
+def test_generator_allows_same_origin_forwarded_dev_port_requests():
+    def make_request(origin):
+        return Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/api/test-generator/start",
+            "headers": [(b"host", b"codespace.example"), (b"origin", origin.encode())],
+            "client": ("10.0.0.8", 12345),
+            "server": ("codespace.example", 443),
+            "scheme": "https",
+            "query_string": b"",
+        })
+
+    assert _is_local_request(make_request("https://codespace.example")) is True
+    assert _is_local_request(make_request("https://attacker.example")) is False
 
 
 def test_generator_page_and_status_api(client):
@@ -213,3 +240,18 @@ def test_ip_geolocation_provider_uses_https_and_parses_coordinates(monkeypatch):
     assert result["lat"] == 12.345678 and result["lng"] == 98.765432
     assert result["source"] == "ipwho.is"
     assert result["org"] == "Example Org"
+
+
+
+def test_overview_priority_queue_excludes_closed_alerts(client):
+    from app import queries
+
+    priority_alerts = queries.overview()["priorityAlerts"]
+    if not priority_alerts:
+        pytest.skip("sample telemetry produced no open priority alerts")
+
+    target = priority_alerts[0]
+    assert queries.close_alert(target["id"]) is True
+
+    queued = queries.overview()["priorityAlerts"]
+    assert all(item["id"] != target["id"] for item in queued)

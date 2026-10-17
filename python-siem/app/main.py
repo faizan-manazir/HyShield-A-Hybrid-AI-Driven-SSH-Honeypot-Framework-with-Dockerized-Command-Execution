@@ -99,9 +99,19 @@ def _safe_next(value, default):
 @app.get("/")
 def overview_page(request: Request):
     data = queries.overview()
+    geo_data = queries.geo_overview()
+    land = charts.land_path(APP_DIR / "static" / "countries-110m.json")
     return render(request, "overview.html", "overview", refresh=10, d=data,
                   timeline_svg=charts.area_chart(data["timeline"]),
-                  donut_svg=charts.donut(data["categories"]))
+                  donut_svg=charts.donut(data["categories"]),
+                  map_svg=charts.world_map(land, geo_data["attackNodes"], geo_data["honeypot"]),
+                  geo=geo_data,
+                  sparklines={
+                      "events": charts.sparkline(data["timeline"], "#fb7185"),
+                      "sessions": charts.sparkline(data["timeline"], "#f59e0b"),
+                      "actors": charts.sparkline(data["timeline"], "#a78bfa"),
+                      "alerts": charts.sparkline(data["timeline"], "#60a5fa"),
+                  })
 
 
 @app.get("/live")
@@ -235,8 +245,24 @@ async def purge(request: Request):
 
 # ======================================================================= API
 def _is_local_request(request: Request) -> bool:
-    host = request.client.host if request.client else ""
-    return host in ("127.0.0.1", "::1", "localhost", "testclient")
+    """Allow local development and same-origin browser calls through forwarded dev ports.
+
+    Codespaces and similar development proxies do not present the browser as a loopback
+    client. For those requests, require an explicit same-origin Origin header; the
+    middleware above rejects cross-origin state-changing requests.
+    """
+    client_host = request.client.host if request.client else ""
+    if client_host in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return True
+    origin = request.headers.get("origin")
+    host = request.headers.get("host", "")
+    if not origin or not host:
+        return False
+    try:
+        parsed = urlparse(origin)
+        return parsed.netloc.lower() == host.lower() and parsed.scheme in ("http", "https")
+    except (TypeError, ValueError):
+        return False
 
 
 @app.get("/api/test-generator/status")
@@ -275,6 +301,17 @@ def api_overview():
     d = queries.overview()
     return {**d, "categories": [{"name": n, "value": v} for n, v, _ in d["categories"]],
             "timeline": [{"time": t, "events": c} for t, c in d["timeline"]]}
+
+
+@app.get("/api/overview/refresh")
+def api_overview_refresh():
+    """Return overview metrics and chart markup from one database read."""
+    data = queries.overview()
+    return {
+        "metrics": data["metrics"],
+        "timeline_svg": charts.area_chart(data["timeline"]),
+        "donut_svg": charts.donut(data["categories"]),
+    }
 
 
 @app.get("/api/overview/charts")
