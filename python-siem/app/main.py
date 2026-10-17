@@ -205,7 +205,7 @@ def disable_user(user_id: int, request: Request):
 
 @app.post("/users/{user_id}/enable")
 def enable_user(user_id: int, request: Request):
-    changed = auth.set_user_active(user_id, True, request.state.user["id"])
+    changed = auth.set_user_active(user_id, True, request.state.user)
     return RedirectResponse("/users?saved=1" if changed else "/users?error=User%20not%20found.", status_code=303)
 
 
