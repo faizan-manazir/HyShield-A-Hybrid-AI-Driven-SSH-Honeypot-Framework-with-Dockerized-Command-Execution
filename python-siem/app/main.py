@@ -5,6 +5,9 @@ Run it:   python run.py
 Open:     http://127.0.0.1:8000        (API docs: http://127.0.0.1:8000/docs)
 """
 import logging
+import threading
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +24,46 @@ from .test_generator import RandomEventGenerator
 
 APP_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=APP_DIR / "templates")   # auto-escapes all {{ values }}
+
+# Lightweight per-process login throttling. Deployments with multiple workers should
+# additionally enforce a shared/proxy-level rate limit.
+_LOGIN_WINDOW_SECONDS = 15 * 60
+_LOGIN_MAX_FAILURES = 8
+_login_failures = defaultdict(deque)
+_login_lock = threading.Lock()
+
+
+def _login_limited(client_ip):
+    now = time.monotonic()
+    with _login_lock:
+        failures = _login_failures[client_ip]
+        while failures and now - failures[0] >= _LOGIN_WINDOW_SECONDS:
+            failures.popleft()
+        return len(failures) >= _LOGIN_MAX_FAILURES
+
+
+def _record_login_failure(client_ip):
+    now = time.monotonic()
+    with _login_lock:
+        failures = _login_failures[client_ip]
+        while failures and now - failures[0] >= _LOGIN_WINDOW_SECONDS:
+            failures.popleft()
+        failures.append(now)
+        if len(_login_failures) > 4096:
+            for ip in list(_login_failures)[:1024]:
+                if not _login_failures[ip] or now - _login_failures[ip][-1] >= _LOGIN_WINDOW_SECONDS:
+                    _login_failures.pop(ip, None)
+
+
+def _clear_login_failures(client_ip):
+    with _login_lock:
+        _login_failures.pop(client_ip, None)
+
+
+def _cookie_secure(request):
+    # Explicit deployment configuration is required when TLS terminates at a proxy.
+    return config.COOKIE_SECURE or request.url.scheme == "https"
+
 
 
 # ----------------------------------------------------------- template helpers
@@ -79,7 +122,16 @@ async def safety(request: Request, call_next):
     # Block other websites from submitting our forms.
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         origin = request.headers.get("origin")
-        if origin and urlparse(origin).netloc != request.headers.get("host"):
+        if origin:
+            try:
+                parsed_origin = urlparse(origin)
+                if (parsed_origin.scheme not in ("http", "https")
+                        or not parsed_origin.netloc
+                        or parsed_origin.netloc.lower() != request.headers.get("host", "").lower()):
+                    return PlainTextResponse("Cross-origin request blocked", status_code=403)
+            except (TypeError, ValueError):
+                return PlainTextResponse("Invalid request origin", status_code=403)
+        elif request.headers.get("sec-fetch-site", "").lower() in ("cross-site", "same-site"):
             return PlainTextResponse("Cross-origin request blocked", status_code=403)
 
     path = request.url.path
@@ -129,13 +181,20 @@ def login_page(request: Request, error: str = ""):
 async def login_submit(request: Request):
     if auth.user_count() == 0:
         return RedirectResponse("/setup", status_code=303)
+    client_ip = request.client.host if request.client else "unknown"
+    if _login_limited(client_ip):
+        return PlainTextResponse("Too many failed sign-in attempts. Wait 15 minutes before trying again.", status_code=429)
     form = await request.form()
     user = auth.authenticate(form.get("username", ""), form.get("password", ""))
     if not user:
+        _record_login_failure(client_ip)
+        if _login_limited(client_ip):
+            return PlainTextResponse("Too many failed sign-in attempts. Wait 15 minutes before trying again.", status_code=429)
         return render(request, "login.html", "login", error="Invalid username or password.")
+    _clear_login_failures(client_ip)
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(auth.COOKIE_NAME, auth.make_session(user), httponly=True,
-                        secure=request.url.scheme == "https", samesite="strict",
+                        secure=_cookie_secure(request), samesite="strict",
                         max_age=auth.SESSION_SECONDS, path="/")
     return response
 
@@ -163,7 +222,7 @@ async def setup_submit(request: Request):
         return render(request, "setup.html", "setup", error="Could not create the initial account. The username may already exist.")
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(auth.COOKIE_NAME, auth.make_session(user), httponly=True,
-                        secure=request.url.scheme == "https", samesite="strict",
+                        secure=_cookie_secure(request), samesite="strict",
                         max_age=auth.SESSION_SECONDS, path="/")
     return response
 
@@ -359,6 +418,8 @@ def session_page(request: Request, session_id: str):
 
 @app.get("/generator")
 def generator_page(request: Request):
+    if not config.ENABLE_TEST_GENERATOR:
+        return PlainTextResponse("Test event generation is disabled in this deployment.", status_code=404)
     return render(request, "generator.html", "generator", generator=app.state.event_generator.status())
 
 
@@ -437,11 +498,15 @@ def _is_local_request(request: Request) -> bool:
 
 @app.get("/api/test-generator/status")
 def api_test_generator_status():
+    if not config.ENABLE_TEST_GENERATOR:
+        return JSONResponse({"error": "Test event generation is disabled."}, status_code=404)
     return app.state.event_generator.status()
 
 
 @app.post("/api/test-generator/start")
 async def api_test_generator_start(request: Request):
+    if not config.ENABLE_TEST_GENERATOR:
+        return JSONResponse({"error": "Test event generation is disabled."}, status_code=404)
     if not _is_local_request(request):
         return JSONResponse({"error": "The test generator is available only from the local machine."}, status_code=403)
     try:
@@ -456,6 +521,8 @@ async def api_test_generator_start(request: Request):
 
 @app.post("/api/test-generator/stop")
 def api_test_generator_stop(request: Request):
+    if not config.ENABLE_TEST_GENERATOR:
+        return JSONResponse({"error": "Test event generation is disabled."}, status_code=404)
     if not _is_local_request(request):
         return JSONResponse({"error": "The test generator is available only from the local machine."}, status_code=403)
     return app.state.event_generator.stop()
