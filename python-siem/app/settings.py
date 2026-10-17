@@ -1,5 +1,7 @@
 """Platform settings, saved in data/settings.json so they survive a restart."""
 import json
+import os
+import tempfile
 
 from . import config
 
@@ -21,7 +23,29 @@ def load():
 
 
 def save(settings):
-    config.SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+    """Atomically persist settings and restrict local secret-file permissions."""
+    config.DATA.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(settings, indent=2)
+    fd, temporary = tempfile.mkstemp(prefix=".settings-", suffix=".tmp", dir=config.DATA)
+    try:
+        try:
+            os.chmod(temporary, 0o600)
+        except OSError:
+            pass
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, config.SETTINGS_PATH)
+        try:
+            os.chmod(config.SETTINGS_PATH, 0o600)
+        except OSError:
+            pass
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
 
 
 def public(settings):
