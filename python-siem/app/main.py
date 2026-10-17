@@ -270,17 +270,38 @@ async def create_user_page(request: Request):
 @app.post("/users/{user_id}/update")
 async def update_user_page(user_id: int, request: Request):
     form = await request.form()
+    username = str(form.get("username", "")).strip()
+    role = str(form.get("role", ""))
+    password = str(form.get("password", ""))
+    actor = request.state.user or {}
     try:
-        changed = auth.update_user(
-            user_id, form.get("username", ""), form.get("role", ""),
-            form.get("password", ""), request.state.user
-        )
+        changed = auth.update_user(user_id, username, role, password, actor)
     except ValueError as exc:
         from urllib.parse import quote
         return RedirectResponse("/users?error=" + quote(str(exc)), status_code=303)
     except Exception:
         return RedirectResponse("/users?error=Could%20not%20update%20account.%20Username%20may%20already%20exist.", status_code=303)
-    return RedirectResponse("/users?saved=1" if changed else "/users?error=User%20not%20found.", status_code=303)
+
+    if not changed:
+        return RedirectResponse("/users?error=User%20not%20found.", status_code=303)
+
+    # Verify the persisted values rather than reporting success merely because
+    # the UPDATE statement returned without raising an exception.
+    persisted = next((u for u in auth.list_users() if int(u["id"]) == int(user_id)), None)
+    if not persisted or persisted["username"] != username or persisted["role"] != role:
+        return RedirectResponse("/users?error=Account%20update%20could%20not%20be%20verified.", status_code=303)
+
+    # If the administrator edited their own username or role, the old session
+    # no longer matches the database. Issue a fresh session for the updated
+    # account and send them to the dashboard, where the new role permissions apply.
+    if int(actor.get("id", -1)) == int(user_id):
+        response = RedirectResponse("/", status_code=303)
+        response.set_cookie(auth.COOKIE_NAME, auth.make_session(persisted), httponly=True,
+                            secure=_cookie_secure(request), samesite="strict",
+                            max_age=auth.SESSION_SECONDS, path="/")
+        return response
+
+    return RedirectResponse("/users?saved=1", status_code=303)
 
 
 @app.post("/users/{user_id}/disable")
