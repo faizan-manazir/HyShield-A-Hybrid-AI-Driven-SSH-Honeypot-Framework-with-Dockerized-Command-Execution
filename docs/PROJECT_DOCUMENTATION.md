@@ -203,7 +203,6 @@ See [Python SIEM detailed documentation](../python-siem/docs/PROJECT_DOCUMENTATI
 | `/sessions` | Session list. |
 | `/sessions/{id}` | Session evidence and score explanation. |
 | `/settings` | Local settings. |
-| `/generator` | Synthetic event generator. |
 | `/docs` | FastAPI interactive API documentation. |
 
 ### Investigation Priorities vs Recent Alerts
@@ -437,7 +436,6 @@ Recommended process:
 - **Correlation:** grouping/interpreting events to identify patterns.
 - **Risk score:** heuristic estimate used for triage.
 - **MITRE ATT&CK:** knowledge base of adversary tactics and techniques.
-- **TEST-NET:** IP ranges reserved for documentation/examples.
 - **Chain of custody:** documented evidence handling from collection through analysis.
 
 ## 19. References
