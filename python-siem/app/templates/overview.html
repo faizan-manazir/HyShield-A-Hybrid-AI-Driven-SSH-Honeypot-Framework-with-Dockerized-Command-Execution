@@ -1,82 +1,88 @@
 {% extends "base.html" %}
 {% block title %}Security Operations Overview - HyShield{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="overview-heading">
   <div>
-    <h1>Security Operations Overview</h1>
-    <p class="sub">A practical view of honeypot activity, alert priorities, and attacker sessions.</p>
+    <div class="eyebrow"><span class="status-dot"></span> SECURITY OPERATIONS CENTER <span class="slash">/</span> OVERVIEW</div>
+    <h1>Security Overview</h1>
+    <p class="sub">Real-time honeypot telemetry, attacker activity, and investigation priorities.</p>
   </div>
-  <span class="live"><i></i>Telemetry monitor</span>
+  <div class="overview-head-actions"><span class="live"><i></i> Live telemetry</span><a class="btn primary" href="/live">Open live monitor ↗</a></div>
 </div>
 
-<div class="grid g4 overview-kpis">
-  <div class="card pad stat"><div class="label">Events collected</div><div id="metric-total-events" class="num" style="color:#60a5fa">{{ '{:,}'.format(d.metrics.totalEvents) }}</div><div class="muted overview-kpi-foot">Stored Cowrie events</div></div>
-  <div class="card pad stat"><div class="label">Observed sessions</div><div id="metric-active-sessions" class="num" style="color:#34d399">{{ d.metrics.activeSessions }}</div><div class="muted overview-kpi-foot">Sessions in telemetry</div></div>
-  <div class="card pad stat"><div class="label">Unique source IPs</div><div id="metric-unique-actors" class="num" style="color:#fbbf24">{{ d.metrics.uniqueActors }}</div><div class="muted overview-kpi-foot">Distinct observed actors</div></div>
-  <div class="card pad stat"><div class="label">Alerts requiring review</div><div id="metric-open-alerts" class="num" style="color:#fb7185">{{ d.metrics.openAlerts }}</div><div class="muted overview-kpi-foot">Open detections</div></div>
+<div class="overview-kpi-grid">
+  <article class="card overview-kpi kpi-events">
+    <div class="kpi-top"><span class="kpi-icon">⚠</span><span class="kpi-label">TOTAL EVENTS</span><span class="kpi-tag">LIVE</span></div>
+    <div class="kpi-bottom"><div><div id="metric-total-events" class="kpi-number">{{ '{:,}'.format(d.metrics.totalEvents) }}</div><div class="kpi-foot">Events ingested from Cowrie</div></div>{{ sparklines.events|safe }}</div>
+  </article>
+  <article class="card overview-kpi kpi-sessions">
+    <div class="kpi-top"><span class="kpi-icon">⌁</span><span class="kpi-label">OBSERVED SESSIONS</span><span class="kpi-tag">TRACKED</span></div>
+    <div class="kpi-bottom"><div><div id="metric-active-sessions" class="kpi-number">{{ d.metrics.activeSessions }}</div><div class="kpi-foot">SSH activity sessions</div></div>{{ sparklines.sessions|safe }}</div>
+  </article>
+  <article class="card overview-kpi kpi-actors">
+    <div class="kpi-top"><span class="kpi-icon">◎</span><span class="kpi-label">UNIQUE SOURCE IPS</span><span class="kpi-tag">ACTORS</span></div>
+    <div class="kpi-bottom"><div><div id="metric-unique-actors" class="kpi-number">{{ d.metrics.uniqueActors }}</div><div class="kpi-foot">Distinct observed sources</div></div>{{ sparklines.actors|safe }}</div>
+  </article>
+  <article class="card overview-kpi kpi-alerts">
+    <div class="kpi-top"><span class="kpi-icon">▣</span><span class="kpi-label">OPEN ALERTS</span><span class="kpi-tag">REVIEW</span></div>
+    <div class="kpi-bottom"><div><div id="metric-open-alerts" class="kpi-number">{{ d.metrics.openAlerts }}</div><div class="kpi-foot">Alerts requiring triage</div></div>{{ sparklines.alerts|safe }}</div>
+  </article>
 </div>
 
-<div class="grid g3 overview-analytics">
-  <section class="card pad overview-panel overview-timeline-panel">
-    <div class="overview-panel-head"><div><h3>Activity over time</h3><p class="muted">Events per minute (UTC)</p></div><a href="/live">Live activity ↗</a></div>
-    <div id="overview-timeline" class="overview-chart">{{ timeline_svg|safe }}</div>
+<div class="overview-main-grid">
+  <section class="card overview-map-panel">
+    <div class="overview-card-heading"><div><h3>Real-time Attack Map</h3><p>Geographic view of observed source infrastructure</p></div><a href="/geomap">Open threat map ↗</a></div>
+    <div class="overview-map-stat"><span class="status-dot"></span> MOST ACTIVE SOURCES</div>
+    <div class="overview-country-list">
+      {% for c in geo.countries[:5] %}
+      <div class="overview-country-row"><span class="country-name">{{ c.flag }} {{ c.name }}</span><span class="country-count">{{ c.eventCount }}</span><span class="country-track"><i style="width:{{ c.percentage }}%"></i></span></div>
+      {% else %}<p class="muted">Waiting for geolocated source activity.</p>{% endfor %}
+    </div>
+    <div class="overview-map-visual">{{ map_svg|safe }}</div>
+    <div class="overview-map-legend"><span><i class="legend-high"></i> High risk</span><span><i class="legend-observed"></i> Observed</span></div>
   </section>
-  <section class="card pad overview-panel">
-    <div class="overview-panel-head"><div><h3>Telemetry breakdown</h3><p class="muted">Events by observed category</p></div></div>
-    <div id="overview-donut" class="overview-chart overview-donut-chart">{{ donut_svg|safe }}</div>
-    <div class="legend overview-legend">{% for name, value, color in d.categories %}<span><i style="background:{{ color }}"></i>{{ name }} <b>{{ value }}</b></span>{% endfor %}</div>
-  </section>
-</div>
 
-<div class="grid g3 overview-investigation-grid">
-  <section class="card overview-panel overview-priority-panel">
-    <div class="card-head"><div><h3>Investigation priorities</h3><p class="muted">Recent detections that may need analyst attention</p></div><a href="/alerts">Open alert queue →</a></div>
+  <section class="card overview-priorities-panel">
+    <div class="overview-card-heading"><div><span class="eyebrow">ANALYST WORKSPACE</span><h3>Investigation priorities</h3><p>Live views from the current Cowrie telemetry store</p></div><a href="/alerts">Open alert queue ↗</a></div>
     <div class="overview-priority-list">
       {% for a in d.recentAlerts %}
       <article class="overview-priority-item">
-        <div class="overview-priority-top">
-          <span class="dot {{ a.severity }}"></span>
-          <span class="overview-priority-title">{{ a.title }}</span>
-          <span class="overview-severity {{ a.severity|lower }}">{{ a.severity }}</span>
-        </div>
-        <p class="overview-priority-reason">{{ a.reason }}</p>
-        <div class="overview-priority-meta">
-          <a class="tag mono" href="/explorer?q={{ a.src_ip }}">{{ a.src_ip }}</a>
-          <span class="muted mono">{{ a.timestamp|tm }}</span>
-        </div>
-        <div class="overview-priority-actions">
-          <a href="/sessions/{{ a.session_id }}">Investigate session <span aria-hidden="true">↗</span></a>
-          <a href="/explorer?q={{ a.src_ip }}">Search source <span aria-hidden="true">↗</span></a>
-        </div>
+        <span class="dot {{ a.severity }}"></span>
+        <div class="priority-copy"><div class="priority-title">{{ a.title }}</div><p>{{ a.src_ip or 'Source unknown' }} · {{ a.reason }}</p><div class="priority-meta"><span class="overview-severity {{ a.severity|lower }}">{{ a.severity }}</span><span>{{ a.timestamp|tm }}</span></div></div>
+        <a class="priority-open" href="/sessions/{{ a.session_id }}" aria-label="Investigate session">›</a>
       </article>
-      {% else %}
-      <div class="empty">No alerts are currently available. New detections will appear here when stored telemetry matches alert rules.</div>
-      {% endfor %}
+      {% else %}<div class="overview-empty">No open alerts. New detections will appear here when telemetry matches alert rules.</div>{% endfor %}
     </div>
+    <a class="overview-footer-link" href="/alerts">Click an alert to inspect its session evidence <span>→</span></a>
   </section>
 
-  <section class="card overview-panel overview-sources-panel">
-    <div class="card-head"><div><h3>Most active sources</h3><p class="muted">Ranked by recorded event count</p></div><a href="/actors">View all →</a></div>
-    <div class="overview-source-list">
-      {% for a in d.topActors %}
-      <article class="overview-source-item">
-        <div class="overview-source-main">
-          <div class="overview-source-ip mono">{{ a.location.flag }} <a href="/explorer?q={{ a.ip }}">{{ a.ip }}</a></div>
-          <div class="muted overview-source-location">{{ a.location.city }}, {{ a.location.countryCode }} · {{ a.eventCount }} events</div>
-          <div class="overview-source-track"><span style="width:{{ [((a.eventCount / (d.topActors[0].eventCount or 1)) * 100), 100]|min }}%"></span></div>
-        </div>
-        {{ risk(a.riskLevel) }}
-      </article>
-      {% else %}
-      <div class="empty">No source activity has been recorded yet.</div>
-      {% endfor %}
-    </div>
-    <a class="overview-map-link" href="/geomap">Open geographic threat map →</a>
-  </section>
+  <aside class="overview-side-stack">
+    <section class="card overview-distribution-panel">
+      <div class="overview-card-heading"><div><h3>Telemetry Distribution</h3><p>Events by observed category</p></div></div>
+      <div class="overview-distribution-body">
+        <div id="overview-donut" class="overview-donut-chart">{{ donut_svg|safe }}</div>
+        <div class="overview-distribution-legend">{% for name, value, color in d.categories %}<div><i style="background:{{ color }}"></i><span>{{ name }}</span><b>{{ value }}</b></div>{% endfor %}</div>
+      </div>
+    </section>
+    <section class="card overview-status-panel">
+      <div class="overview-card-heading"><div><h3>System Status</h3><p>Local telemetry components</p></div><span class="status-good"><i></i> Monitoring</span></div>
+      <div class="overview-status-list">
+        <div><span>SIEM Web Application</span><b>Operational</b></div>
+        <div><span>Cowrie Log Ingestion</span><b>{{ 'Receiving events' if d.metrics.totalEvents else 'Awaiting events' }}</b></div>
+        <div><span>Event Correlation</span><b>Available</b></div>
+        <div><span>Threat Map</span><b>Available</b></div>
+        <div><span>MITRE ATT&CK Mapping</span><b>Available</b></div>
+      </div>
+    </section>
+  </aside>
 </div>
 
-<section class="card pad overview-live-cta">
-  <div><span class="eyebrow">TELEMETRY</span><h3>Need the full event context?</h3><p class="muted">Inspect the live Cowrie stream with source IP, session, and event details.</p></div>
-  <a class="btn primary" href="/live">Open Live Activity <span aria-hidden="true">→</span></a>
-</section>
+<div class="overview-bottom-grid">
+  <section class="card overview-bottom-panel"><div class="overview-card-heading"><div><h3>Recent Alerts</h3><p>Latest open detections requiring analyst attention</p></div><a href="/alerts">View all alerts →</a></div>
+    <div class="overview-bottom-list">{% for a in d.recentAlerts[:4] %}<a class="overview-bottom-row" href="/sessions/{{ a.session_id }}"><span class="dot {{ a.severity }}"></span><span>{{ a.title }}</span><b class="overview-severity {{ a.severity|lower }}">{{ a.severity }}</b></a>{% else %}<p class="muted">No recent alerts.</p>{% endfor %}</div>
+  </section>
+  <section class="card overview-bottom-panel"><div class="overview-card-heading"><div><h3>Top Source Actors</h3><p>Sources ranked by recorded event count</p></div><a href="/actors">View all →</a></div>
+    <div class="overview-bottom-list">{% for a in d.topActors[:4] %}<a class="overview-bottom-row" href="/explorer?q={{ a.ip|urlencode }}"><span class="country-name">{{ a.location.flag }} {{ a.ip }}</span><span class="muted">{{ a.eventCount }} events</span>{{ risk(a.riskLevel) }}</a>{% else %}<p class="muted">No source activity recorded yet.</p>{% endfor %}</div>
+  </section>
+</div>
 {% endblock %}
