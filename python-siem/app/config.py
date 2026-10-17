@@ -5,6 +5,10 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("HYSHIELD_DATA", BASE / "data"))
 DATA.mkdir(parents=True, exist_ok=True)
+try:
+    DATA.chmod(0o700)
+except OSError:
+    pass  # Windows and restricted filesystems may not support POSIX modes
 
 # Cowrie JSON log that gets tailed (new lines are picked up automatically)
 LOG_PATH = Path(os.environ.get("COWRIE_LOG_PATH", DATA / "cowrie.json"))
@@ -14,6 +18,13 @@ SETTINGS_PATH = DATA / "settings.json"
 # Safe default: only reachable from this computer
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
+
+# Synthetic event generation is enabled by default only for loopback development.
+ENABLE_TEST_GENERATOR = os.environ.get(
+    "HYSHIELD_ENABLE_TEST_GENERATOR", "true" if HOST in ("127.0.0.1", "::1", "localhost") else "false"
+).lower() in ("1", "true", "yes")
+# Set true whenever HTTPS terminates in front of the ASGI app.
+COOKIE_SECURE = os.environ.get("HYSHIELD_COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
 
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "2"))
 
