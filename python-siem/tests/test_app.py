@@ -445,7 +445,7 @@ def test_super_admin_can_change_cowrie_log_path_immediately(client, tmp_path):
         assert response.headers["location"] == "/settings?tab=source&saved=1"
         assert app.state.ingestor.log_path == str(source.resolve())
         assert cfg.load()["cowrieLogPath"] == str(source.resolve())
-        assert app.state.ingestor.poll() == 1
+        assert app.state.ingestor.poll() in (0, 1)  # background polling may win the race
         assert any(item["id"] == "custom-path-test" for item in client.get("/api/sessions").json())
     finally:
         app.state.ingestor.set_log_path(original_path)
