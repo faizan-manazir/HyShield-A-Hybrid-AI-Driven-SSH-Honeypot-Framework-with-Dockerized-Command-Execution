@@ -178,10 +178,8 @@ def set_user_active(user_id, active, acting_user):
             return False
         if int(user_id) == int(acting_user["id"]) and not active:
             raise ValueError("You cannot disable your own account.")
-        if row["role"] == "super_admin" and row["active"] and not active:
-            count = conn.execute("SELECT COUNT(*) FROM users WHERE role='super_admin' AND active=1").fetchone()[0]
-            if count <= 1:
-                raise ValueError("At least one active Super Admin must remain.")
+        if row["role"] == "super_admin" and not active:
+            raise ValueError("Super Admin accounts cannot be disabled here. Update the account details or create another administrator instead.")
         conn.execute("UPDATE users SET active = ? WHERE id = ?", (1 if active else 0, user_id))
         conn.commit()
         changed_user = conn.execute("SELECT username, active FROM users WHERE id = ?", (user_id,)).fetchone()
