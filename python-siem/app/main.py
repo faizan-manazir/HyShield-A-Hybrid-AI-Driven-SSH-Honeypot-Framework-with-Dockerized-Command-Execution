@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import charts, config, db, queries, settings as cfg
+from . import auth, charts, config, db, queries, settings as cfg
 from .ingest import Ingestor
 from .test_generator import RandomEventGenerator
 
@@ -51,7 +51,9 @@ templates.env.globals.update(minutes_between=minutes_between, RISK_COLORS=charts
 
 
 def render(request, template, page, refresh=0, **context):
-    context.update(page=page, refresh=refresh)
+    context.update(page=page, refresh=refresh,
+                   current_user=getattr(request.state, "user", None),
+                   role_labels=auth.ROLE_LABELS)
     return templates.TemplateResponse(request, template, context)
 
 
@@ -74,11 +76,29 @@ app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 
 @app.middleware("http")
 async def safety(request: Request, call_next):
-    # Block other websites from submitting our forms (close alert / purge / settings)
+    # Block other websites from submitting our forms.
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         origin = request.headers.get("origin")
         if origin and urlparse(origin).netloc != request.headers.get("host"):
             return PlainTextResponse("Cross-origin request blocked", status_code=403)
+
+    path = request.url.path
+    exempt = path.startswith("/static/") or path in ("/login", "/setup", "/logout", "/api/health")
+    request.state.user = None
+    if not exempt:
+        if auth.user_count() == 0:
+            return RedirectResponse("/setup", status_code=303)
+        user = auth.read_session(request.cookies.get(auth.COOKIE_NAME, ""))
+        if not user:
+            if path.startswith("/api/") or path in ("/docs", "/openapi.json", "/redoc"):
+                return JSONResponse({"error": "Authentication required."}, status_code=401)
+            return RedirectResponse("/login", status_code=303)
+        request.state.user = user
+        if not auth.can_access(user["role"], request.method, path):
+            if path.startswith("/api/"):
+                return JSONResponse({"error": "Your role does not permit this action."}, status_code=403)
+            return PlainTextResponse("Forbidden: your role does not permit this action.", status_code=403)
+
     response = await call_next(request)
     # No scripts allowed at all: log data comes from attackers, so even if something
     # slipped through the escaping, the browser would refuse to run it.
@@ -93,6 +113,117 @@ async def safety(request: Request, call_next):
 def _safe_next(value, default):
     """Only allow redirects to pages on this site."""
     return value if value and value.startswith("/") and not value.startswith("//") else default
+
+
+# -------------------------------------------------------------- authentication
+@app.get("/login")
+def login_page(request: Request, error: str = ""):
+    if auth.user_count() == 0:
+        return RedirectResponse("/setup", status_code=303)
+    if auth.read_session(request.cookies.get(auth.COOKIE_NAME, "")):
+        return RedirectResponse("/", status_code=303)
+    return render(request, "login.html", "login", error=error)
+
+
+@app.post("/login")
+async def login_submit(request: Request):
+    if auth.user_count() == 0:
+        return RedirectResponse("/setup", status_code=303)
+    form = await request.form()
+    user = auth.authenticate(form.get("username", ""), form.get("password", ""))
+    if not user:
+        return render(request, "login.html", "login", error="Invalid username or password.")
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie(auth.COOKIE_NAME, auth.make_session(user), httponly=True,
+                        secure=request.url.scheme == "https", samesite="strict",
+                        max_age=auth.SESSION_SECONDS, path="/")
+    return response
+
+
+@app.get("/setup")
+def setup_page(request: Request, error: str = ""):
+    if auth.user_count() > 0:
+        return RedirectResponse("/login", status_code=303)
+    return render(request, "setup.html", "setup", error=error)
+
+
+@app.post("/setup")
+async def setup_submit(request: Request):
+    if auth.user_count() > 0:
+        return RedirectResponse("/login", status_code=303)
+    form = await request.form()
+    username, password, confirm = form.get("username", ""), form.get("password", ""), form.get("confirm", "")
+    if password != confirm:
+        return render(request, "setup.html", "setup", error="Passwords do not match.")
+    try:
+        user = auth.create_user(username, password, "super_admin")
+    except ValueError as exc:
+        return render(request, "setup.html", "setup", error=str(exc))
+    except Exception:
+        return render(request, "setup.html", "setup", error="Could not create the initial account. The username may already exist.")
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie(auth.COOKIE_NAME, auth.make_session(user), httponly=True,
+                        secure=request.url.scheme == "https", samesite="strict",
+                        max_age=auth.SESSION_SECONDS, path="/")
+    return response
+
+
+@app.post("/logout")
+def logout():
+    response = RedirectResponse("/login", status_code=303)
+    response.delete_cookie(auth.COOKIE_NAME, path="/", httponly=True, samesite="strict")
+    return response
+
+
+@app.get("/users")
+def users_page(request: Request, error: str = "", saved: int = 0):
+    return render(request, "users.html", "users", users=auth.list_users(), error=error, saved=saved)
+
+
+@app.post("/users")
+async def create_user_page(request: Request):
+    form = await request.form()
+    try:
+        auth.create_user(form.get("username", ""), form.get("password", ""), form.get("role", ""))
+    except ValueError as exc:
+        from urllib.parse import quote
+        return RedirectResponse("/users?error=" + quote(str(exc)), status_code=303)
+    except Exception:
+        return RedirectResponse("/users?error=Could%20not%20create%20user.%20Username%20may%20already%20exist.", status_code=303)
+    return RedirectResponse("/users?saved=1", status_code=303)
+
+
+@app.post("/users/{user_id}/disable")
+def disable_user(user_id: int, request: Request):
+    try:
+        changed = auth.set_user_active(user_id, False, request.state.user["id"])
+    except ValueError as exc:
+        from urllib.parse import quote
+        return RedirectResponse("/users?error=" + quote(str(exc)), status_code=303)
+    return RedirectResponse("/users?saved=1" if changed else "/users?error=User%20not%20found.", status_code=303)
+
+
+@app.post("/users/{user_id}/enable")
+def enable_user(user_id: int, request: Request):
+    changed = auth.set_user_active(user_id, True, request.state.user["id"])
+    return RedirectResponse("/users?saved=1" if changed else "/users?error=User%20not%20found.", status_code=303)
+
+
+@app.get("/api/users")
+def api_users():
+    return auth.list_users()
+
+
+@app.post("/api/users")
+async def api_create_user(request: Request):
+    try:
+        body = await request.json()
+        user = auth.create_user(body.get("username"), body.get("password"), body.get("role"))
+        return JSONResponse(user, status_code=201)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"error": "Could not create user. Username may already exist."}, status_code=409)
 
 
 # ===================================================================== PAGES
