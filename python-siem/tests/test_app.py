@@ -119,7 +119,7 @@ def test_csp_allows_only_same_origin_bundled_scripts(client):
     response = client.get("/")
     assert "script-src 'self'" in response.headers["content-security-policy"]
     assert "script-src 'none'" not in response.headers["content-security-policy"]
-    assert '<script src="/static/app.js?v=9" defer></script>' in response.text
+    assert '<script src="/static/app.js?v=10" defer></script>' in response.text
     assert 'http-equiv="refresh"' not in response.text
     assert 'data-refresh="10"' in response.text
 
