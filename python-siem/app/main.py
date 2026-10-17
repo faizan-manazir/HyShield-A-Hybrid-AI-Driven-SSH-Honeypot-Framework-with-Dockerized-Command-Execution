@@ -530,7 +530,8 @@ def api_test_generator_stop(request: Request):
 
 @app.get("/api/health")
 def api_health():
-    return {"status": "ok", "ingested": app.state.ingestor.stats}
+    # Keep the unauthenticated liveness endpoint intentionally low-information.
+    return {"status": "ok"}
 
 
 @app.get("/api/overview/metrics")
