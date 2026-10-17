@@ -97,8 +97,16 @@ class Ingestor(threading.Thread):
                            VALUES (?,?,?,?,?)
                            ON CONFLICT(session_id) DO UPDATE SET
                              src_ip     = COALESCE(sessions.src_ip, excluded.src_ip),
-                             start_time = MIN(sessions.start_time, excluded.start_time),
-                             end_time   = MAX(sessions.end_time, excluded.end_time),
+                             start_time = CASE
+                                 WHEN sessions.start_time IS NULL THEN excluded.start_time
+                                 WHEN excluded.start_time IS NULL THEN sessions.start_time
+                                 ELSE MIN(sessions.start_time, excluded.start_time)
+                             END,
+                             end_time = CASE
+                                 WHEN sessions.end_time IS NULL THEN excluded.end_time
+                                 WHEN excluded.end_time IS NULL THEN sessions.end_time
+                                 ELSE MAX(sessions.end_time, excluded.end_time)
+                             END,
                              is_closed  = MAX(sessions.is_closed, excluded.is_closed)""",
                         (session, event.get("src_ip"), ts, ts, closed))
                     touched.add(session)
