@@ -144,8 +144,7 @@ JavaScript on 68 sessions: identical results wherever the original was correct. 
 
 ## Security notes
 
-- Listens on `127.0.0.1` only. There is **no login**. Do not expose it to the internet as it is; put it behind a VPN or an
-  authenticating reverse proxy first.
+- Listens on `127.0.0.1` by default and requires sign-in. Roles are Super Admin, Security Analyst, and Read-Only Auditor. For remote access, still use a VPN or trusted authenticating reverse proxy with HTTPS and review the deployment controls.
 - Everything from the log is attacker-controlled text. Output is HTML-escaped, the map metadata is escaped before it enters SVG attributes, and the Content-Security-Policy permits only same-origin scripts. Tests cover output escaping.
 - Forms reject requests that come from another website.
 - Public IPs are looked up via `ipwho.is` over HTTPS in a background worker and cached in SQLite. Set `HYSHIELD_GEO=off` to disable lookups. IP geolocation coordinates are approximate network-region estimates, not GPS or street-level locations; this provider does not supply an accuracy radius in this integration.
