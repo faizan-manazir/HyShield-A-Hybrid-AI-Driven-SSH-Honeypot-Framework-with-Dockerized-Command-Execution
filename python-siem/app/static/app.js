@@ -193,9 +193,7 @@
     return response.json();
   }
   async function updateOverview() {
-    const [data, chartData] = await Promise.all([
-      getJSON('/api/overview/metrics'), getJSON('/api/overview/charts')
-    ]);
+    const data = await getJSON('/api/overview/refresh');
     text('#metric-total-events', Number(data.metrics.totalEvents).toLocaleString());
     text('#metric-active-sessions', data.metrics.activeSessions);
     text('#metric-unique-actors', data.metrics.uniqueActors);
@@ -203,12 +201,12 @@
     // Replace chart SVGs only; surrounding panels, scroll, and page state persist.
     const timeline = document.querySelector('#overview-timeline');
     const donut = document.querySelector('#overview-donut');
-    if (timeline && typeof chartData.timeline_svg === 'string') timeline.innerHTML = chartData.timeline_svg;
-    if (donut && typeof chartData.donut_svg === 'string') {
+    if (timeline && typeof data.timeline_svg === 'string') timeline.innerHTML = data.timeline_svg;
+    if (donut && typeof data.donut_svg === 'string') {
       // Animate the breakdown when the page first opens, but don't replay the
       // entrance animation on every quiet 10-second background data refresh.
       const parsedDonut = document.createElement('template');
-      parsedDonut.innerHTML = chartData.donut_svg;
+      parsedDonut.innerHTML = data.donut_svg;
       parsedDonut.content.querySelectorAll('.donut-slice[data-animated="true"]').forEach((slice) => {
         slice.removeAttribute('data-animated');
       });
