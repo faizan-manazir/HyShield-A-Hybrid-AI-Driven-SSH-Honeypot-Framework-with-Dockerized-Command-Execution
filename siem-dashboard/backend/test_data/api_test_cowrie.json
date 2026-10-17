@@ -1,2 +1,0 @@
-{"eventid":"cowrie.session.connect","session":"sess-api-1","src_ip":"10.0.0.1","timestamp":"2026-10-10T16:41:11.081Z"}
-{"eventid":"cowrie.command.input","session":"sess-api-1","src_ip":"10.0.0.1","timestamp":"2026-10-10T16:41:11.082Z","input":"wget malware"}
