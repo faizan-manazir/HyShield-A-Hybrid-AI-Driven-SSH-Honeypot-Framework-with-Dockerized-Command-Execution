@@ -167,7 +167,7 @@ def world_map(land, nodes, honeypot):
     for n in nodes:
         x, y = project(n["lat"], n["lng"])
         mx, my = (x + hx) / 2, min(y, hy) - abs(x - hx) * 0.18 - 12
-        color = RISK_COLORS.get(n["riskLevel"], RISK_COLORS["LOW"])
+        color = RISK_COLORS.get(str(n.get("riskLevel", "LOW")).upper(), RISK_COLORS["LOW"])
         out.append(f'<path d="M{x:.1f},{y:.1f} Q{mx:.1f},{my:.1f} {hx:.1f},{hy:.1f}" class="arc" stroke="{color}" data-ip="{escape(str(n.get("ip", "")), quote=True)}" data-risk="{escape(str(n.get("riskLevel", "LOW")), quote=True)}"/>')
     out.append('</g><g class="map-nodes">')
     for n in nodes:
@@ -179,7 +179,7 @@ def world_map(land, nodes, honeypot):
         city = escape(str(n.get("city", "Unknown")), quote=True)
         country = escape(str(n.get("countryName", "Unknown")), quote=True)
         org = escape(str(n.get("org", "Unknown network")), quote=True)
-        risk = escape(str(n.get("riskLevel", "LOW")), quote=True)
+        risk = escape(str(n.get("riskLevel", "LOW")).upper(), quote=True)
         source = escape(str(n.get("source", "unknown")), quote=True)
         radius_km = "" if n.get("accuracyRadiusKm") is None else str(n["accuracyRadiusKm"])
         session_ids = escape(",".join(str(v) for v in n.get("sessionIds", [])[:20]), quote=True)
