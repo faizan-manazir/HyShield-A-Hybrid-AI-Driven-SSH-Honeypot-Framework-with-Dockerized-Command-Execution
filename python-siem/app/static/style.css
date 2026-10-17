@@ -658,30 +658,6 @@ tbody tr { transition: background-color var(--motion-fast) ease; }
 }
 
 
-/* Synthetic test-event generator */
-.eyebrow { color: var(--cyan-soft); font-size: 10px; font-weight: 800; letter-spacing: .16em; margin-bottom: 8px; }
-.metric-label { color: var(--dim); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.metric-value { font-size: 28px; font-weight: 650; letter-spacing: -.03em; margin: 8px 0 4px; }
-.generator-running { color: #34d399; }
-.generator-form { display: grid; gap: 10px; }
-.generator-form label { color: #b9c8d9; font-size: 11px; font-weight: 700; letter-spacing: .04em; margin-top: 5px; }
-.generator-form select { width: 100%; background: #0d1725; border: 1px solid rgba(148,172,204,.2); color: var(--text); padding: 11px 12px; border-radius: 8px; font: inherit; }
-.generator-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.generator-actions .btn { padding: 11px 16px; }
-.btn:disabled { opacity: .42; cursor: not-allowed; transform: none; }
-.generator-message { border: 1px solid rgba(103,230,243,.12); background: rgba(103,230,243,.045); border-radius: 8px; padding: 12px 14px; color: #a8c7d6; font-size: 12px; min-height: 44px; }
-.progress-track { height: 6px; overflow: hidden; border-radius: 99px; background: rgba(148,172,204,.12); }
-.progress-value { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #0891b2, #34d399); transition: width .65s ease; }
-.generator-checklist { display: grid; gap: 18px; }
-.generator-checklist > div { display: flex; align-items: flex-start; gap: 12px; }
-.generator-check { display: grid; place-items: center; flex: 0 0 23px; height: 23px; border-radius: 7px; color: #67e8f9; background: rgba(6,182,212,.1); border: 1px solid rgba(6,182,212,.18); font-weight: 800; }
-.generator-checklist b { display: block; color: #dce8f5; font-size: 12px; }
-.generator-checklist p { color: var(--dim); margin: 3px 0 0; font-size: 12px; }
-.generator-note { color: #b4c1d2; font-size: 12px; border-color: rgba(245,158,11,.2); background: rgba(245,158,11,.045); }
-@media (max-width: 800px) { .generator-stats { grid-template-columns: 1fr; } .g2 { grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { .progress-value { transition: none; } }
-
-
 /* Readability pass: increase body copy contrast and soften overly small labels. */
 :root { --text: #edf3fb; --muted: #b4c3d5; --dim: #91a3ba; }
 html, body { font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.62; color: #edf3fb; }
@@ -1008,3 +984,39 @@ input::placeholder, textarea::placeholder { color: #8fa2b9; opacity: 1; }
 /* Avoid double entrance/fade transitions that can make page navigation flicker. */
 .wrap, .wrap.page-leaving { animation:none !important; }
 .motion-ready .reveal-on-scroll { opacity:1 !important; transform:none !important; transition:none !important; }
+
+
+/* Role clarity: make the signed-in identity and current permission scope unmistakable. */
+.user-identity { display:inline-flex; align-items:center; gap:7px; min-width:0; padding:5px 8px; border:1px solid rgba(148,163,184,.18); border-radius:8px; background:rgba(15,28,45,.72); }
+.user-identity-name { color:#e2edf9; font-size:11px; font-weight:650; }
+.role-chip, .role-context-tag { display:inline-flex; align-items:center; justify-content:center; border:1px solid transparent; border-radius:5px; padding:4px 7px; font-size:9px; line-height:1.2; font-weight:750; letter-spacing:.045em; white-space:nowrap; }
+.role-super_admin { color:#f4d58a; background:rgba(202,151,54,.13); border-color:rgba(202,151,54,.34); }
+.role-analyst { color:#8bd8ff; background:rgba(56,150,207,.13); border-color:rgba(56,150,207,.34); }
+.role-auditor { color:#c4b5fd; background:rgba(139,92,246,.13); border-color:rgba(139,92,246,.34); }
+.role-context { display:flex; align-items:flex-start; gap:13px; margin:0 0 18px; padding:15px 17px; border:1px solid rgba(148,163,184,.18); border-left:3px solid #64748b; border-radius:10px; background:linear-gradient(105deg,rgba(21,37,57,.96),rgba(13,24,39,.9)); }
+.role-context-super_admin { border-left-color:#d8aa4e; }
+.role-context-analyst { border-left-color:#48b5ed; }
+.role-context-auditor { border-left-color:#a78bfa; }
+.role-context-icon { display:grid; place-items:center; flex:0 0 34px; width:34px; height:34px; border-radius:9px; color:#b7cce3; background:rgba(148,163,184,.1); font-size:17px; }
+.role-context-super_admin .role-context-icon { color:#f4d58a; background:rgba(202,151,54,.12); }
+.role-context-analyst .role-context-icon { color:#8bd8ff; background:rgba(56,150,207,.12); }
+.role-context-auditor .role-context-icon { color:#c4b5fd; background:rgba(139,92,246,.12); }
+.role-context-copy { min-width:0; flex:1; }
+.role-context-heading { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
+.role-context-heading strong { color:#e6effb; font-size:12px; }
+.role-context-copy p { margin:6px 0 0; color:#9fb2ca; font-size:11px; line-height:1.55; }
+.role-context-tag { padding:3px 6px; color:#a8bbd2; background:rgba(148,163,184,.08); border-color:rgba(148,163,184,.18); font-size:8px; }
+.role-context-super_admin .role-context-tag { color:#f4d58a; }
+.role-context-analyst .role-context-tag { color:#8bd8ff; }
+.role-context-auditor .role-context-tag { color:#c4b5fd; }
+.role-context-links { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:9px; }
+.role-context-links a { color:#c3d8f0; font-size:10px; font-weight:650; text-decoration:none; }
+.role-context-links a:hover { color:#fff; text-decoration:underline; }
+.role-context-links span { color:#8b9eb5; font-size:10px; }
+@media (max-width:720px) {
+  .user-identity { gap:5px; padding:4px 6px; }
+  .user-identity-name { font-size:10px; }
+  .role-chip { font-size:8px; }
+  .role-context { gap:10px; padding:12px; }
+  .role-context-icon { flex-basis:29px; width:29px; height:29px; }
+}

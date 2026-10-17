@@ -14,8 +14,8 @@ It is designed for research, education, honeypot monitoring, and controlled lab 
 - Store raw events, sessions, alerts, ingestion checkpoints, settings, and geolocation cache data.
 - Correlate session behavior into a score from 0 to 100 and a risk band.
 - Raise rule-based alerts and attach selected MITRE ATT&CK technique mappings.
-- Provide overview metrics, live event viewing, alert triage, event search, actor summaries, session evidence, map visualizations, and settings.
-- Generate synthetic Cowrie-shaped events locally for testing and demos.
+- Provide overview metrics, live event viewing, alert triage, event search, actor summaries, session evidence, map visualizations, settings, and downloadable standalone HTML security reports.
+- Generate operational telemetry-shaped events locally for testing and demos.
 - Expose JSON endpoints and FastAPI's interactive API documentation.
 - Use SQLite without requiring a separate database server or frontend build system.
 
@@ -25,8 +25,8 @@ It is designed for research, education, honeypot monitoring, and controlled lab 
 - IP geolocation is approximate and can reflect VPNs, proxies, cloud egress, or ISP infrastructure.
 - Rule-based scoring can produce false positives and false negatives.
 - MITRE ATT&CK mappings are behavior labels, not attribution.
-- Synthetic events are not real incidents and must not be mixed with evidence.
-- The app README notes that the dashboard has no login. Do not expose it directly to the Internet without authentication and a deployment security review.
+- operational telemetry are not real incidents and must not be mixed with evidence.
+- The SIEM now has account authentication and role-based access control. Do not expose it directly to the Internet without a deployment security review, trusted HTTPS ingress, and network restrictions.
 
 ## 2. Architecture at a glance
 
@@ -70,9 +70,9 @@ Cowrie JSON-lines log (cowrie.json)
 
 1. Cowrie appends one JSON object per line to its configured log.
 2. The ingestor polls the file, reads new complete lines, parses events, and advances a checkpoint.
-3. Events are stored in SQLite; session records and alert/correlation state are updated.
+3. Events are stored in SQLite; session records and alert/correlation state are updated. Session start and end timestamps are merged without replacing an existing non-null timestamp with an incoming null value.
 4. The correlation engine examines observed session events and commands, calculates component scores, a total score, risk band, summary, and applicable alert/technique metadata.
-5. The query layer provides common database calculations to HTML pages and JSON APIs.
+5. The query layer provides common database calculations to HTML pages and JSON APIs. Event Explorer search and category filtering are applied by the database query before its result limit, so matching older records are not discarded merely because they fall outside a pre-filtered recent-event window.
 6. FastAPI serves Jinja templates and API responses. Python-generated SVG is used for charts/map visualizations; browser JavaScript powers interactions and periodic refreshes.
 7. An analyst opens alerts or sessions and reviews the evidence behind the score.
 
@@ -83,7 +83,7 @@ The SIEM ingestion pipeline is distinct from the parent project's interactive SS
 | Path | Purpose |
 |---|---|
 | `run.py` | Starts the application through Uvicorn. |
-| `app/main.py` | FastAPI app lifecycle, middleware, page routes, JSON endpoints, and request handling. |
+| `app/main.py` | FastAPI app lifecycle, middleware, page routes, JSON endpoints, HTML report export, and request handling. |
 | `app/config.py` | Environment variables, paths, server options, and geolocation/map settings. |
 | `app/db.py` | SQLite connection helpers, schema creation, and JSON helpers. |
 | `app/ingest.py` | Background JSON-lines reader, checkpointing, and log-change handling. |
@@ -92,16 +92,30 @@ The SIEM ingestion pipeline is distinct from the parent project's interactive SS
 | `app/geo.py` | IP classification, asynchronous public-IP geolocation, and caching. |
 | `app/charts.py` | Escaped SVG chart and threat-map generation. |
 | `app/settings.py` | Persistent settings, public settings projection, and raw config rendering. |
-| `app/test_generator.py` | Local synthetic Cowrie event generator. |
 | `app/templates/` | Jinja templates for the pages. |
 | `app/static/app.js` | Browser interactions, API requests, and quiet UI refreshes. |
 | `app/static/style.css` | Layout, colors, responsive styles, risk indicators, and dashboard presentation. |
-| `tools/simulate.py` | CLI utility for adding synthetic sessions/events. |
-| `data/` | Default data directory for the log, SQLite database, and settings; created as needed. |
+| | `data/` | Default data directory for the log, SQLite database, and settings; created as needed. |
 | `tests/` | Automated tests, run with pytest. |
 | `requirements.txt` | FastAPI, Uvicorn, Jinja, multipart support, and test dependencies. |
 
 Use the current files in the branch as the source of truth when code changes. This document explains responsibilities and known behavior; it is not a substitute for reading the implementation.
+
+## Authentication and role-based access control
+
+The SIEM provides an authenticated `/reports/export.html` endpoint that downloads a standalone HTML report with current metrics, recent alerts, source actors, sessions, and event records. The report is generated on demand, HTML-escapes log-derived content, and is sent as an attachment with caching disabled. Exported files may contain sensitive telemetry and should be stored securely.\n\nThe SIEM requires an account before protected pages and APIs can be used. On a fresh database, visit `/setup` to create the first Super Admin. Once at least one account exists, setup redirects to login and cannot create another initial administrator. Sign in at `/login`; use **Sign out** to clear the session cookie.
+
+Passwords are stored as salted scrypt hashes, not plaintext. Session cookies are signed, HttpOnly, SameSite=Strict, and expire after eight hours. The signing secret is read from `HYSHIELD_AUTH_SECRET` or generated in `data/auth_secret`; protect this file and the data directory. The generated key must persist across restarts or users will be logged out. Set a stable secret through the environment when using multiple app instances.
+
+### Roles
+
+| Role | Permissions |
+|---|---|
+| `super_admin` | Full access, user creation/enable/disable, settings, purge, and administrative audit logs. |
+| `analyst` | View dashboards and investigation data and close alerts. No account management, settings changes, or purge. |
+| `auditor` | Read-only dashboards, alerts, event/session investigation, and audit logs. Cannot mutate alerts, settings, or accounts. |
+
+Authorization is enforced by server middleware on page and API requests; UI navigation hiding is not the security boundary. Administrative/authentication activity is recorded in the SQLite `audit_logs` table and shown at `/audit-logs` to Super Admins and Auditors. Use a trusted HTTPS ingress for remote access. This feature does not replace a full deployment security review.
 
 ## 4. Application startup and lifecycle
 
@@ -135,7 +149,6 @@ The dashboard is organized around triage and investigation. Page availability an
 | `/sessions` | Session list. | Select a session for investigation. |
 | `/sessions/{id}` | Session timeline/evidence and score explanation. | Review commands and context behind an alert. |
 | `/settings` | Local settings and configuration display. | Adjust supported application settings. |
-| `/generator` | Synthetic event generator. | Populate a test environment with harmless sample telemetry. |
 | `/docs` | FastAPI OpenAPI explorer. | Inspect available JSON endpoints and schemas. |
 
 ### Suggested analyst workflow
@@ -166,6 +179,18 @@ Within the same severity, newer session timestamps come first. The query sorts t
 The separate Recent Alerts panel is chronological and emphasizes the newest activity. It is useful for monitoring what has just happened, rather than choosing the most urgent investigation.
 
 Severity is a triage aid, not a final verdict. A critical alert should be investigated promptly, but the analyst must review source events and session context before describing the event as a confirmed compromise.
+
+## Dashboard refresh behavior
+
+The refreshable dashboard pages use a **5-second** polling interval. Event Explorer uses the same interval when its Auto-refresh option is enabled. Browser refresh requests update page content in the background rather than forcing a full-page reload.
+
+The JavaScript interval enforces a 5-second minimum. This controls browser polling only; it does not guarantee that every Cowrie record will appear within five seconds because file ingestion, database writes, and query/render time also contribute to end-to-end latency. The refresh setting is emitted by the page route in `app/main.py` and consumed by `app/static/app.js`.
+
+## Event Explorer search and filtering
+
+The query layer applies the selected category and search term in SQL before applying the requested result limit. This avoids the previous behavior in which the app could limit the newest events first and then filter that subset, hiding older records that matched the analyst's search. The result limit is clamped to the supported range, and unknown categories fall back to `ALL`.
+
+Search results are still limited to the configured maximum, so use a narrower query or a different category when investigating a large event set. Search results should be corroborated with the underlying Cowrie log and session evidence.
 
 ## 7. Event ingestion
 
@@ -209,7 +234,7 @@ Indexes support common lookups such as raw events by session and timestamp. Exac
 - Back up the database according to the lab's retention needs.
 - Preserve original Cowrie logs separately when they may be evidence.
 - Hash acquired log copies and record acquisition time when following a forensic workflow.
-- Keep demo/synthetic telemetry in a separate log and database.
+- Keep demo/operational telemetry in a separate log and database.
 - Do not treat normalized rows or UI labels as a replacement for the original event record.
 
 ## 9. Correlation, scoring, and alert generation
@@ -255,13 +280,11 @@ The geolocation module classifies IP addresses and performs public-IP lookups th
 
 ### Real-world limitations
 - Private, loopback, and reserved IPs do not have normal public geolocation.
-- In `DEMO_MODE`, private/loopback addresses may be assigned stable simulated locations so the map can be demonstrated.
-- Simulated locations are not real source locations and must not be presented as attribution.
-- Public-IP coordinates are approximate and may identify a provider/network region rather than the operator.
+- - - Public-IP coordinates are approximate and may identify a provider/network region rather than the operator.
 - VPNs, proxies, cloud servers, NAT, and compromised intermediaries can make location misleading.
 - External lookups disclose queried public IP addresses to the geolocation provider.
 
-Set `HYSHIELD_GEO=off` to disable external lookups when network policy or privacy requirements call for it. Document whether map data is real, unresolved, or simulated when exporting screenshots or reports.
+Set `HYSHIELD_GEO=off` to disable external lookups when network policy or privacy requirements call for it. 
 
 ## 12. Charts, map rendering, and browser UI
 
@@ -309,7 +332,6 @@ Configuration is read by `app/config.py`. Defaults below describe the current Py
 | `HOST` | `127.0.0.1`, localhost-only default bind. |
 | `PORT` | `8000`. |
 | `POLL_SECONDS` | `2` seconds between ingestion polls. |
-| `DEMO_MODE` | Off by default; use `true` to give private/loopback IPs stable simulated map locations. |
 | `HYSHIELD_GEO` | Geolocation enabled unless set to `off`. |
 | `HONEYPOT_NAME` | Sensor label displayed by the map. |
 | `HONEYPOT_LAT` / `HONEYPOT_LNG` | Sensor coordinates, defaulting to Islamabad coordinates. |
@@ -328,12 +350,6 @@ Disable geolocation:
 
 ```bash
 HYSHIELD_GEO=off python run.py
-```
-
-Run a demo bound to all interfaces (only when the environment's access controls make this appropriate):
-
-```bash
-HOST=0.0.0.0 PORT=8000 DEMO_MODE=true python run.py
 ```
 
 On Windows PowerShell, set variables before starting:
@@ -380,26 +396,10 @@ Open `http://127.0.0.1:8000`. The interactive API explorer is `http://127.0.0.1:
 
 ```bash
 cd python-siem
-DEMO_MODE=true uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Use the forwarded port only for the intended audience. Do not expose sensitive logs or an unauthenticated dashboard publicly.
-
-## 17. Synthetic events and CLI simulation
-
-The application includes a synthetic Cowrie event generator. It writes randomized Cowrie-shaped JSON lines using documentation-only TEST-NET IP ranges and does not send network traffic. Those records flow through the normal ingestion/correlation pipeline, so they affect metrics, sessions, risk scores, alerts, and demo maps.
-
-The UI generator supports a bounded session count and normal/fast generation. A CLI simulator is also provided under `tools/simulate.py`.
-
-Example documented workflow:
-
-```bash
-DEMO_MODE=true python run.py
-# In another terminal, from python-siem/:
-python tools/simulate.py --count 30
-```
-
-Use a separate test log/database whenever possible. If synthetic records are appended to the same log as real activity, they become part of the same ingested dataset and may be difficult to distinguish later. Mark demo data clearly and never report it as real attacker telemetry.
 
 ## 18. Security controls and deployment limitations
 
@@ -411,7 +411,7 @@ The current SIEM includes several useful controls described in its code/README:
 - The VirusTotal key is not returned by the public settings representation.
 - The default host is `127.0.0.1`.
 
-These safeguards are not a complete deployment security review. The README states that there is no login. Before remote or shared deployment:
+These safeguards are not a complete deployment security review. Authentication and role-based access control are implemented, but that alone is not a complete deployment security review. Before remote or shared deployment:
 - Put the dashboard behind an authenticated VPN or reverse proxy.
 - Restrict network access and use TLS at the trusted ingress.
 - Protect the database, log files, and settings file with filesystem permissions.
@@ -451,7 +451,7 @@ A successful command should be judged by the actual test output and exit code; t
 - [ ] Alert actions and settings changes return expected status/results.
 - [ ] Malicious-looking HTML in event fields is rendered as text, not active markup.
 - [ ] Geolocation can be disabled.
-- [ ] Synthetic events are isolated from evidence-bearing logs.
+- [ ] operational telemetry are isolated from evidence-bearing logs.
 - [ ] The dashboard is not remotely reachable without intended access controls.
 
 ## 20. Troubleshooting
@@ -498,7 +498,6 @@ Confirm the setting is persisted and that external credentials/service access ar
 - Re-test the ingestion pipeline after Cowrie upgrades.
 - Review API routes before exposing them through a reverse proxy.
 - Document local configuration differences so another analyst can reproduce the deployment.
-- Keep synthetic demo data clearly marked and separate.
 
 ## 22. Development workflow
 
@@ -533,7 +532,6 @@ Do not claim tests passed unless they were actually executed.
 - **Alert:** record created by a detection rule/correlation result.
 - **MITRE ATT&CK:** public knowledge base of adversary tactics and techniques.
 - **Geolocation:** approximate network location associated with a public IP address.
-- **TEST-NET:** documentation-reserved IP ranges used for examples and synthetic telemetry.
 - **False positive:** an alert that does not represent the harmful behavior suggested by the rule.
 - **False negative:** harmful behavior that the configured rules do not detect.
 - **Chain of custody:** documented handling of evidence from acquisition through analysis.
@@ -549,3 +547,8 @@ Do not claim tests passed unless they were actually executed.
 - [SQLite documentation](https://www.sqlite.org/docs.html)
 - [MITRE ATT&CK](https://attack.mitre.org/)
 - [ipwho.is](https://ipwho.is/)
+
+
+## Testing changes
+
+From `python-siem/`, run `python -m pytest -q` to execute the automated suite. Record the actual command output and exit status when validating a change; historical test results do not verify later commits.

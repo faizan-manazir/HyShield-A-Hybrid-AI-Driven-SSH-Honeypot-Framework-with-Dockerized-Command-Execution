@@ -7,8 +7,30 @@
     <h1>Security Overview</h1>
     <p class="sub">Real-time honeypot telemetry, attacker activity, and investigation priorities.</p>
   </div>
-  <div class="overview-head-actions"><span class="live"><i></i> Live telemetry</span><a class="btn primary" href="/live">Open live monitor ↗</a></div>
+  <div class="overview-head-actions"><span class="live"><i></i> Live telemetry</span><a class="btn" href="/reports/export.html">Export HTML Report ↓</a><a class="btn primary" href="/live">Open live monitor ↗</a></div>
 </div>
+
+{% if current_user %}
+<section class="role-context role-context-{{ current_user.role }}" aria-label="Your account permissions">
+  <div class="role-context-icon" aria-hidden="true">{% if current_user.role == 'super_admin' %}◆{% elif current_user.role == 'analyst' %}⌕{% else %}▤{% endif %}</div>
+  <div class="role-context-copy">
+    <div class="role-context-heading">
+      <strong>{{ role_labels.get(current_user.role, current_user.role) }} workspace</strong>
+      {% if current_user.role == 'auditor' %}<span class="role-context-tag">READ ONLY</span>{% elif current_user.role == 'super_admin' %}<span class="role-context-tag">FULL ACCESS</span>{% else %}<span class="role-context-tag">OPERATIONS</span>{% endif %}
+    </div>
+    {% if current_user.role == 'super_admin' %}
+      <p>You have full system access, including account management, settings, audit logs, and alert handling.</p>
+      <div class="role-context-links"><a href="/users">Manage users ↗</a><a href="/settings">System settings ↗</a><a href="/audit-logs">Review audit logs ↗</a></div>
+    {% elif current_user.role == 'analyst' %}
+      <p>Investigate telemetry, review sessions, and close alerts. Account administration, system settings, and audit logs are restricted.</p>
+      <div class="role-context-links"><a href="/alerts">Work alert queue ↗</a></div>
+    {% else %}
+      <p>You can review telemetry, investigate sessions, and inspect audit logs. This account cannot modify alerts, manage users, or change system settings.</p>
+      <div class="role-context-links"><a href="/audit-logs">Review audit logs ↗</a><span>Changes disabled for this role</span></div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
 
 <div class="overview-kpi-grid">
   <article class="card overview-kpi kpi-events">

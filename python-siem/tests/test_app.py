@@ -4,13 +4,20 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app import charts, config
+from app import auth, charts, config
 from app.main import app, _is_local_request
 
 
 @pytest.fixture(scope="module")
 def client():
+    import secrets
     with TestClient(app) as c:                       # runs startup (creates the ingestor thread)
+        username = "pytest-" + secrets.token_hex(4)
+        admin = auth.create_user(username, "Test-Admin-Password-2026!", "super_admin")
+        response = c.post("/login", data={"username": username, "password": "Test-Admin-Password-2026!"}, follow_redirects=False)
+        assert response.status_code == 303
+        app.state.test_admin = admin
+        app.state.test_admin_cookie = c.cookies.get(auth.COOKIE_NAME)
         app.state.ingestor.poll()                    # read the sample log right now
         yield c
 
@@ -18,7 +25,7 @@ def client():
 PAGES = ["/", "/live", "/geomap", "/mitre", "/alerts", "/alerts?severity=HIGH", "/explorer",
          "/explorer?q=wget&category=CMD", "/actors", "/actors?sort=RISK", "/sessions",
          "/sessions?sort=THREAT",
-         "/settings", "/settings?tab=response", "/settings?tab=intel", "/settings?tab=raw", "/generator"]
+         "/settings", "/settings?tab=response", "/settings?tab=intel", "/settings?tab=raw", "/settings?tab=source"]
 
 
 @pytest.mark.parametrize("path", PAGES)
@@ -33,7 +40,6 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     dashboard = client.get("/")
     assert dashboard.status_code == 200
     assert 'href="/live"' in dashboard.text
-    assert 'href="/generator"' in dashboard.text
     assert "Real-time Attack Map" in dashboard.text
     assert "Investigation priorities" in dashboard.text
     assert "Telemetry Distribution" in dashboard.text
@@ -44,7 +50,7 @@ def test_live_activity_is_a_dashboard_tab_and_retired_pages_are_removed(client):
     live = client.get("/live")
     assert live.status_code == 200
     assert "Recent telemetry" in live.text
-    assert 'data-refresh="10"' in live.text
+    assert 'data-refresh="5"' in live.text
     for path in ("/fim", "/vulnerabilities", "/api/fim"):
         assert client.get(path).status_code == 404, path
     sidebar = dashboard.text
@@ -123,13 +129,26 @@ def test_cross_origin_post_is_blocked(client):
     assert client.get("/api/overview/metrics").json()["metrics"]["totalEvents"] > 0
 
 
+def test_loopback_origin_alias_is_allowed_but_external_origin_is_not(client):
+    # Browser access via localhost and 127.0.0.1 should work for local development.
+    r = client.post("/setup", data={}, headers={
+        "origin": "http://localhost:8000", "host": "127.0.0.1:8000"
+    }, follow_redirects=False)
+    assert r.status_code != 403
+    # Different non-loopback hosts must still be blocked.
+    r = client.post("/settings/purge", data={"confirm": "PURGE"}, headers={
+        "origin": "http://attacker.example:8000", "host": "127.0.0.1:8000"
+    }, follow_redirects=False)
+    assert r.status_code == 403
+
+
 def test_csp_allows_only_same_origin_bundled_scripts(client):
     response = client.get("/")
     assert "script-src 'self'" in response.headers["content-security-policy"]
     assert "script-src 'none'" not in response.headers["content-security-policy"]
     assert '<script src="/static/app.js?v=12" defer></script>' in response.text
     assert 'http-equiv="refresh"' not in response.text
-    assert 'data-refresh="10"' in response.text
+    assert 'data-refresh="5"' in response.text
 
 
 def test_api_key_is_never_echoed(client):
@@ -155,49 +174,6 @@ def test_purge_requires_confirmation(client):
     assert app.state.ingestor.poll() == 0                    # old lines are not re-read
 
 
-def test_generator_allows_same_origin_forwarded_dev_port_requests():
-    def make_request(origin):
-        return Request({
-            "type": "http",
-            "method": "POST",
-            "path": "/api/test-generator/start",
-            "headers": [(b"host", b"codespace.example"), (b"origin", origin.encode())],
-            "client": ("10.0.0.8", 12345),
-            "server": ("codespace.example", 443),
-            "scheme": "https",
-            "query_string": b"",
-        })
-
-    assert _is_local_request(make_request("https://codespace.example")) is True
-    assert _is_local_request(make_request("https://attacker.example")) is False
-
-
-def test_generator_page_and_status_api(client):
-    page = client.get("/generator")
-    assert page.status_code == 200
-    assert "Test Event Generator" in page.text
-    assert "TEST-NET" in page.text
-    status = client.get("/api/test-generator/status")
-    assert status.status_code == 200
-    assert "running" in status.json()
-
-def test_generator_emits_synthetic_cowrie_events(client):
-    import time
-    response = client.post("/api/test-generator/start", json={"sessions": 1, "speed": "fast"})
-    assert response.status_code == 200, response.text
-    deadline = time.time() + 3
-    status = client.get("/api/test-generator/status").json()
-    while status["running"] and time.time() < deadline:
-        time.sleep(0.05)
-        status = client.get("/api/test-generator/status").json()
-    assert not status["running"]
-    assert status["completed_sessions"] == 1
-    assert status["events_written"] >= 3
-    assert app.state.ingestor.poll() >= 3
-    events = client.get("/api/events?limit=200").json()
-    assert any(e.get("src_ip", "").startswith(("192.0.2.", "198.51.100.", "203.0.113.")) for e in events)
-
-
 def test_geo_map_is_interactive_and_displays_coordinate_metadata(client):
     page = client.get("/geomap")
     assert page.status_code == 200
@@ -205,7 +181,10 @@ def test_geo_map_is_interactive_and_displays_coordinate_metadata(client):
     assert 'id="geo-risk-filter"' in page.text
     assert 'id="geo-copy-coords"' in page.text
     assert 'id="geo-detail-lat"' in page.text
-    assert 'data-lat="' in page.text and 'data-lng="' in page.text
+    # Marker coordinate attributes exist when the configured log contains public,
+    # geolocatable sources. The page must still render correctly for an empty map.
+    if "No public source coordinates are available yet." not in page.text:
+        assert 'data-lat="' in page.text and 'data-lng="' in page.text
     assert "not a device’s GPS position" in page.text
 
 
@@ -255,3 +234,196 @@ def test_overview_priority_queue_excludes_closed_alerts(client):
 
     queued = queries.overview()["priorityAlerts"]
     assert all(item["id"] != target["id"] for item in queued)
+
+
+
+def test_login_setup_and_role_permissions(client):
+    import secrets
+    analyst_name = "analyst-" + secrets.token_hex(3)
+    auditor_name = "auditor-" + secrets.token_hex(3)
+    analyst = auth.create_user(analyst_name, "Test-Analyst-Password-2026!", "analyst")
+    auditor = auth.create_user(auditor_name, "Test-Auditor-Password-2026!", "auditor")
+
+    client.cookies.set(auth.COOKIE_NAME, auth.make_session(analyst))
+    assert client.get("/").status_code == 200
+    assert client.get("/settings").status_code == 403
+    assert client.get("/users").status_code == 403
+    assert client.post("/alerts/nonexistent/close", data={}).status_code == 404
+    assert client.post("/settings/purge", data={"confirm": "PURGE"}).status_code == 403
+
+    client.cookies.set(auth.COOKIE_NAME, auth.make_session(auditor))
+    assert client.get("/").status_code == 200
+    assert client.get("/audit-logs").status_code == 200
+    assert client.get("/settings").status_code == 403
+    assert client.get("/users").status_code == 403
+    assert client.post("/alerts/nonexistent/close", data={}).status_code == 403
+    assert client.post("/api/test-generator/start", json={"sessions": 1}).status_code == 403
+
+    client.cookies.set(auth.COOKIE_NAME, app.state.test_admin_cookie)
+    assert client.get("/users").status_code == 200
+    assert client.get("/settings").status_code == 200
+
+
+def test_password_hashing_and_account_disable(client):
+    import secrets
+    username = "disable-" + secrets.token_hex(3)
+    user = auth.create_user(username, "Test-Disable-Password-2026!", "auditor")
+    assert auth.authenticate(username, "wrong-password") is None
+    assert auth.authenticate(username, "Test-Disable-Password-2026!") is not None
+    assert auth.set_user_active(user["id"], False, app.state.test_admin) is True
+    assert auth.authenticate(username, "Test-Disable-Password-2026!") is None
+
+
+
+def test_protected_routes_require_login_and_setup_closes_after_bootstrap(client):
+    # Build an independent client so role-switching cookies from other tests
+    # cannot create duplicate cookies with the same name.
+    from fastapi.testclient import TestClient
+    unauthenticated = TestClient(app)
+    unauthenticated.cookies.clear()
+    page = unauthenticated.get("/", follow_redirects=False)
+    assert page.status_code == 303 and page.headers["location"] == "/login"
+    api = unauthenticated.get("/api/events")
+    assert api.status_code == 401
+    setup = unauthenticated.get("/setup", follow_redirects=False)
+    assert setup.status_code == 303 and setup.headers["location"] == "/login"
+
+
+
+
+def test_html_report_download_is_standalone_and_contains_security_summary(client):
+    response = client.get("/reports/export.html")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert response.headers["content-disposition"].startswith("attachment; filename=\"hyshield-security-report-")
+    assert response.headers["cache-control"] == "no-store"
+    assert "<!doctype html>" in response.text.lower()
+    assert "HyShield SIEM Security Report" in response.text
+    assert "TOTAL EVENTS" in response.text
+    assert "Recent Events" in response.text
+    assert "<script" not in response.text.lower()
+
+
+def test_initial_super_admin_setup_is_one_time(monkeypatch, tmp_path):
+    from app import db
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "bootstrap.db")
+    db.init()
+    user = auth.create_initial_admin("bootstrap-admin", "Bootstrap-Admin-Password-2026!")
+    assert user["role"] == "super_admin"
+    assert auth.user_count() == 1
+    with pytest.raises(ValueError, match="already been completed"):
+        auth.create_initial_admin("second-admin", "Second-Admin-Password-2026!")
+    assert auth.user_count() == 1
+
+
+def test_login_throttling_returns_429_after_eight_failures(client):
+    from app import main
+    main._clear_login_failures("testclient")
+    for attempt in range(8):
+        response = client.post("/login", data={"username": "not-a-user", "password": "incorrect-password"},
+                               follow_redirects=False)
+    assert response.status_code == 429
+    blocked = client.post("/login", data={"username": "not-a-user", "password": "incorrect-password"},
+                          follow_redirects=False)
+    assert blocked.status_code == 429
+    main._clear_login_failures("testclient")
+
+
+def test_secure_cookie_can_be_forced_for_tls_terminating_proxy(client, monkeypatch):
+    monkeypatch.setattr(config, "COOKIE_SECURE", True)
+    response = client.post("/login", data={"username": app.state.test_admin["username"],
+                                           "password": "Test-Admin-Password-2026!"},
+                           follow_redirects=False)
+    assert response.status_code == 303
+    cookie = response.headers.get("set-cookie", "")
+    assert "Secure" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=strict" in cookie
+
+
+def test_retention_removes_expired_events_but_preserves_sessions_with_recent_events(monkeypatch, tmp_path):
+    from app import db
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "retention.db")
+    db.init()
+    conn = db.connect()
+    try:
+        conn.execute("INSERT INTO sessions(session_id, start_time) VALUES (?, ?)",
+                     ("mixed-age", "2020-01-01T00:00:00Z"))
+        conn.execute("INSERT INTO raw_events VALUES (?, ?, ?, ?, ?)",
+                     ("old-event", "mixed-age", "2020-01-01T00:00:00Z", "cowrie.old", "{}"))
+        conn.execute("INSERT INTO raw_events VALUES (?, ?, ?, ?, ?)",
+                     ("new-event", "mixed-age", "2026-10-17T00:00:00Z", "cowrie.new", "{}"))
+        conn.execute("INSERT INTO alerts(id, session_id, severity, title) VALUES (?, ?, ?, ?)",
+                     ("retention-alert", "mixed-age", "LOW", "test"))
+        conn.commit()
+    finally:
+        conn.close()
+    result = db.cleanup_retention(90)
+    conn = db.connect()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM raw_events WHERE id='old-event'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM raw_events WHERE id='new-event'").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM sessions WHERE session_id='mixed-age'").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM alerts WHERE id='retention-alert'").fetchone()[0] == 1
+    finally:
+        conn.close()
+    assert result["events_deleted"] == 1
+
+
+def test_ingestor_discards_oversized_json_line(monkeypatch, tmp_path):
+    from app import db
+    from app.ingest import Ingestor, MAX_LINE_BYTES
+    log_path = tmp_path / "oversized.json"
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "oversized.db")
+    db.init()
+    log_path.write_bytes(b"x" * (MAX_LINE_BYTES + 100) + b"\n")
+    ingestor = Ingestor(log_path)
+    assert ingestor.poll() == 0
+    conn = db.connect()
+    try:
+        row = conn.execute("SELECT eventid, payload FROM raw_events").fetchone()
+        assert row["eventid"] == "error.oversized"
+        assert "Oversized log line discarded" in row["payload"]
+    finally:
+        conn.close()
+
+
+def test_super_admin_can_change_cowrie_log_path_immediately(client, tmp_path):
+    from app import settings as cfg
+    source = tmp_path / "cowrie-custom.json"
+    source.write_text(json.dumps({
+        "eventid": "cowrie.session.connect",
+        "session": "custom-path-test",
+        "src_ip": "198.51.100.77",
+        "timestamp": "2026-10-17T00:00:00Z",
+    }) + "\n", encoding="utf-8")
+    original_path = app.state.ingestor.log_path
+    original_setting = cfg.load().get("cowrieLogPath", original_path)
+    try:
+        response = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(source)},
+                               follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/settings?tab=source&saved=1"
+        assert app.state.ingestor.log_path == str(source.resolve())
+        assert cfg.load()["cowrieLogPath"] == str(source.resolve())
+        assert app.state.ingestor.poll() in (0, 1)  # background polling may win the race
+        assert any(item["id"] == "custom-path-test" for item in client.get("/api/sessions").json())
+    finally:
+        app.state.ingestor.set_log_path(original_path)
+        cfg.save({**cfg.load(), "cowrieLogPath": original_setting})
+
+
+def test_cowrie_log_path_rejects_missing_file_and_non_admin(client, tmp_path):
+    missing = tmp_path / "does-not-exist.json"
+    response = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(missing)},
+                           follow_redirects=False)
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+    assert app.state.ingestor.log_path != str(missing)
+
+    analyst = auth.create_user("path-analyst-test", "Test-Path-Password-2026!", "analyst")
+    client.cookies.set(auth.COOKIE_NAME, auth.make_session(analyst))
+    forbidden = client.post("/settings", data={"tab": "source", "cowrieLogPath": str(missing)},
+                            follow_redirects=False)
+    assert forbidden.status_code == 403
+    client.cookies.set(auth.COOKIE_NAME, app.state.test_admin_cookie)

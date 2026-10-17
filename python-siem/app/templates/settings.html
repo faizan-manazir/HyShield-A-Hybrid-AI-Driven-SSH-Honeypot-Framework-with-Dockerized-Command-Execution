@@ -9,15 +9,17 @@
 {% endmacro %}
 {% block content %}
 <div class="page-head">
-  <div><h1>⚙ System Settings</h1><p class="sub">Configure alert thresholds, retention preferences, response options, and threat-intelligence integrations.</p></div>
+  <div><h1>⚙ System Settings</h1><p class="sub">Configure telemetry sources, alert thresholds, response options, and threat-intelligence integrations.</p></div>
 </div>
 {% if saved %}<div class="ok-banner">✓ Settings saved successfully.</div>{% endif %}
+{% if error %}<div class="danger-zone" role="alert">{{ error }}</div>{% endif %}
 <div class="tabs">
   <nav>
     <a class="{{ 'on' if tab == 'global' }}" href="/settings?tab=global">🌐 General</a>
     <a class="{{ 'on' if tab == 'response' }}" href="/settings?tab=response">🛡 Response</a>
     <a class="{{ 'on' if tab == 'intel' }}" href="/settings?tab=intel">🗄 Intelligence</a>
     <a class="{{ 'on' if tab == 'raw' }}" href="/settings?tab=raw">📝 Configuration</a>
+    <a class="{{ 'on' if tab == 'source' }}" href="/settings?tab=source">📂 Log Source</a>
   </nav>
   <div class="body">
   {% if tab == 'global' %}
@@ -60,10 +62,23 @@
       <p class="hint">API keys are stored locally in data/settings.json and are not displayed after saving. Live indicator lookups are not implemented yet.</p>
       <button class="btn primary">Save settings</button>
     </form>
+  {% elif tab == 'source' %}
+    <form method="post" action="/settings" class="card pad">
+      <input type="hidden" name="tab" value="source">
+      <h3 style="margin-bottom:16px;letter-spacing:.08em;text-transform:uppercase">Cowrie JSON log source</h3>
+      <p class="hint" style="margin-bottom:18px">Set the absolute path to the Cowrie JSON-lines log on the SIEM server. The file must already exist and be readable by the HyShield service account. The ingestor switches immediately and begins reading the selected file; a restart is not required.</p>
+      <div class="field"><label class="f" for="cowrieLogPath">Cowrie log file path</label>
+        <input id="cowrieLogPath" type="text" name="cowrieLogPath" value="{{ s.cowrieLogPath }}" required maxlength="4096" autocomplete="off" spellcheck="false" style="width:100%">
+        <p class="hint">Example: /home/cowrie/cowrie/var/log/cowrie/cowrie.json</p>
+      </div>
+      <p class="hint">Changing this setting does not move or modify the source log. Ensure the SIEM process has read permission for the file and execute permission on every parent directory. Stop the test event generator before switching sources.</p>
+      <button class="btn primary">Save log source</button>
+    </form>
   {% else %}
     <div class="card pad"><h3 style="margin-bottom:16px;letter-spacing:.08em;text-transform:uppercase">Generated configuration preview</h3>
       <pre class="rawconf">{{ raw }}</pre></div>
   {% endif %}
   </div>
 </div>
+
 {% endblock %}

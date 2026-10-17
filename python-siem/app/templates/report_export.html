@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HyShield SIEM Security Report</title>
+  <style>
+    :root { color-scheme: light; --ink: #172033; --muted: #5b6474; --line: #d9dee8; --panel: #f4f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px; font: 14px/1.5 Arial, Helvetica, sans-serif; color: var(--ink); background: #fff; }
+    main { max-width: 1200px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; border-bottom: 3px solid #172033; padding-bottom: 18px; margin-bottom: 24px; }
+    h1 { margin: 0 0 6px; font-size: 28px; } h2 { margin: 28px 0 10px; font-size: 18px; }
+    p { margin: 4px 0; } .muted { color: var(--muted); } .stamp { text-align: right; color: var(--muted); }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .metric { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: var(--panel); }
+    .metric span { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+    .metric strong { display: block; font-size: 28px; margin-top: 5px; }
+    .table-wrap { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid var(--line); padding: 8px 9px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    th { background: #edf1f7; } tbody tr:nth-child(even) { background: #fafbfd; }
+    .pill { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 700; }
+    .notice { margin-top: 28px; padding: 12px; background: #fff8e7; border: 1px solid #ead9a4; border-radius: 6px; color: #5f4b16; }
+    footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+    @media (max-width: 700px) { body { padding: 14px; } header { display: block; } .stamp { text-align: left; margin-top: 12px; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media print { body { padding: 0; } .metric, table, tr { break-inside: avoid; } h2 { break-after: avoid; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>HyShield SIEM Security Report</h1><p class="muted">Cowrie telemetry, detections, and investigation summary</p></div>
+    <div class="stamp"><strong>Generated (UTC)</strong><p>{{ generated_at }}</p><p>Snapshot report · current database state</p></div>
+  </header>
+  <section aria-label="Summary metrics">
+    <div class="metrics">
+      <div class="metric"><span>TOTAL EVENTS</span><strong>{{ "{:,}".format(metrics.totalEvents) }}</strong></div>
+      <div class="metric"><span>ACTIVE SESSIONS</span><strong>{{ "{:,}".format(metrics.activeSessions) }}</strong></div>
+      <div class="metric"><span>OPEN ALERTS</span><strong>{{ "{:,}".format(metrics.openAlerts) }}</strong></div>
+      <div class="metric"><span>UNIQUE SOURCE IPS</span><strong>{{ "{:,}".format(metrics.uniqueActors) }}</strong></div>
+    </div>
+  </section>
+  <h2>Alerts (up to 100 most recent)</h2>
+  <div class="table-wrap"><table><thead><tr><th>Severity</th><th>Status</th><th>Detection</th><th>Source IP</th><th>Session</th><th>MITRE ATT&amp;CK</th><th>Timestamp</th><th>Reason</th></tr></thead><tbody>
+  {% for a in alerts %}<tr><td><span class="pill">{{ a.severity or "UNKNOWN" }}</span></td><td>{{ a.status or "UNKNOWN" }}</td><td>{{ a.title or "Untitled alert" }}</td><td>{{ a.src_ip or "Unknown" }}</td><td>{{ a.session_id or "-" }}</td><td>{{ a.mitre or "-" }}</td><td>{{ a.timestamp or "-" }}</td><td>{{ a.reason or "-" }}</td></tr>
+  {% else %}<tr><td colspan="8">No alerts are recorded.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <h2>Source Actors (top 20 by recorded event count)</h2>
+  <div class="table-wrap"><table><thead><tr><th>Source IP</th><th>Risk</th><th>Events</th><th>Sessions</th><th>First Seen (UTC)</th><th>Last Seen (UTC)</th><th>Approximate Location</th></tr></thead><tbody>
+  {% for a in actors %}<tr><td>{{ a.ip }}</td><td>{{ a.riskLevel }}</td><td>{{ a.eventCount }}</td><td>{{ a.sessionCount }}</td><td>{{ a.firstSeen or "-" }}</td><td>{{ a.lastSeen or "-" }}</td><td>{{ a.location.city or "-" }}, {{ a.location.countryName or "-" }}</td></tr>
+  {% else %}<tr><td colspan="7">No source actors are recorded.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <h2>Sessions (up to 50 most recent)</h2>
+  <div class="table-wrap"><table><thead><tr><th>Session ID</th><th>Source IP</th><th>Risk</th><th>Threat Score</th><th>Events</th><th>Started (UTC)</th><th>Closed</th></tr></thead><tbody>
+  {% for s in sessions %}<tr><td>{{ s.id }}</td><td>{{ s.src_ip or "-" }}</td><td>{{ s.riskLevel or "LOW" }}</td><td>{{ s.threatScore or 0 }}</td><td>{{ s.eventCount or 0 }}</td><td>{{ s.start_time or "-" }}</td><td>{{ "Yes" if s.is_closed else "No" }}</td></tr>
+  {% else %}<tr><td colspan="7">No sessions are recorded.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <h2>Recent Events (up to 100)</h2>
+  <div class="table-wrap"><table><thead><tr><th>Timestamp</th><th>Event Type</th><th>Source IP</th><th>Username</th><th>Command / Message</th><th>Session</th></tr></thead><tbody>
+  {% for e in events %}<tr><td>{{ e.timestamp or "-" }}</td><td>{{ e.eventid or "-" }}</td><td>{{ e.src_ip or "-" }}</td><td>{{ e.username or "-" }}</td><td>{{ e.input or e.message or e.command or "-" }}</td><td>{{ e.session or "-" }}</td></tr>
+  {% else %}<tr><td colspan="6">No events are recorded.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="notice"><strong>Handling notice:</strong> This report may contain attacker-controlled text, source IP addresses, usernames, commands, and investigation metadata. Store and share it as sensitive security data. IP geolocation is approximate and is not proof of identity or physical location.</div>
+  <footer>HyShield SIEM · Generated from the current SQLite-backed telemetry snapshot. This report is a triage aid; validate important findings against the original Cowrie evidence.</footer>
+</main>
+</body>
+</html>

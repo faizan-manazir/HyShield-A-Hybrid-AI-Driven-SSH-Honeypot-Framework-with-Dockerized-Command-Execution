@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Initial setup - HyShield SIEM</title><link rel="stylesheet" href="/static/style.css?v=22"><script src="/static/form-transport.js?v=1" defer></script></head>
+<body><main style="max-width:520px;margin:8vh auto;padding:24px">
+  <div class="card pad">
+    <h1>Initial SIEM setup</h1><p class="sub">Create the first Super Admin account. This setup page is disabled once an account exists.</p>
+    {% if error %}<div class="danger-zone" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/setup">
+      <div class="field"><label class="f" for="username">Super Admin username</label><input id="username" name="username" autocomplete="username" required minlength="3" maxlength="64"></div>
+      <div class="field"><label class="f" for="password">Password (at least 12 characters)</label><input id="password" name="password" type="password" autocomplete="new-password" required minlength="12"></div>
+      <div class="field"><label class="f" for="confirm">Confirm password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" required minlength="12"></div>
+      <button class="btn primary" type="submit">Create Super Admin</button>
+    </form>
+  </div>
+</main></body></html>

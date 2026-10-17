@@ -9,10 +9,14 @@ import json
 import logging
 import os
 import threading
+import time
 
 from . import correlation, db
 
 log = logging.getLogger("hyshield.ingest")
+
+MAX_BATCH_BYTES = 1024 * 1024
+MAX_LINE_BYTES = 256 * 1024
 
 
 class Ingestor(threading.Thread):
@@ -23,6 +27,7 @@ class Ingestor(threading.Thread):
         self.lock = threading.Lock()      # so "purge" and "read" never run together
         self.stop_flag = threading.Event()
         self.stats = {"events": 0, "errors": 0}
+        self._last_retention_cleanup = 0.0
 
     # ---- thread loop ----------------------------------------------------
     def run(self):
@@ -37,29 +42,68 @@ class Ingestor(threading.Thread):
     def stop(self):
         self.stop_flag.set()
 
+    def set_log_path(self, log_path):
+        """Switch the tailed source atomically with respect to poll/purge."""
+        with self.lock:
+            self.log_path = str(log_path)
+
     # ---- one pass -------------------------------------------------------
     def poll(self):
-        """Read everything new in the log file. Returns number of lines stored."""
+        """Read new log lines and periodically enforce configured telemetry retention."""
         with self.lock:
+            now = time.monotonic()
+            if now - self._last_retention_cleanup >= 3600:
+                try:
+                    from . import settings
+                    db.cleanup_retention(settings.load().get("logRetention", 90))
+                    self._last_retention_cleanup = now
+                except Exception:
+                    log.exception("retention cleanup failed")
             if not os.path.exists(self.log_path):
                 return 0
             st = os.stat(self.log_path)
             inode = str(st.st_ino)
             conn = db.connect()
             try:
-                row = conn.execute("SELECT last_offset FROM checkpoints WHERE inode=?", (inode,)).fetchone()
-                offset = row["last_offset"] if row else 0
+                row = conn.execute("SELECT last_offset, file_path FROM checkpoints WHERE inode=?", (inode,)).fetchone()
+                # Inodes can be reused and can collide across different filesystems.
+                # Never carry an offset from a different configured path.
+                offset = row["last_offset"] if row and row["file_path"] == self.log_path else 0
                 if st.st_size < offset:            # file was emptied/truncated -> start over
                     offset = 0
                 if st.st_size == offset:
                     return 0
                 with open(self.log_path, "rb") as f:
                     f.seek(offset)
-                    data = f.read(st.st_size - offset)
-                end = data.rfind(b"\n")            # ignore a half-written last line
-                if end == -1:
-                    return 0
-                chunk = data[: end + 1]
+                    data = f.read(min(st.st_size - offset, MAX_BATCH_BYTES))
+                    end = data.rfind(b"\n")  # ignore a half-written last line
+                    if end == -1:
+                        # Keep ordinary partial writes, but stream-skip a pathological
+                        # line rather than buffering it without limit forever.
+                        if st.st_size - offset <= MAX_LINE_BYTES:
+                            return 0
+                        f.seek(offset)
+                        skipped = 0
+                        while True:
+                            block = f.read(64 * 1024)
+                            if not block:
+                                return 0
+                            newline = block.find(b"\n")
+                            if newline >= 0:
+                                skipped += newline + 1
+                                break
+                            skipped += len(block)
+                        event_id = hashlib.sha256(f"{self.log_path}|{inode}|{offset}|oversized".encode()).hexdigest()
+                        conn.execute("INSERT OR IGNORE INTO raw_events VALUES (?,?,?,?,?)",
+                                     (event_id, None, None, "error.oversized", json.dumps({"error": "Oversized log line discarded"})))
+                        conn.execute(
+                            "INSERT INTO checkpoints (inode, file_path, last_offset) VALUES (?,?,?) "
+                            "ON CONFLICT(inode) DO UPDATE SET last_offset=excluded.last_offset, file_path=excluded.file_path",
+                            (inode, self.log_path, offset + skipped))
+                        conn.commit()
+                        self.stats["errors"] += 1
+                        return 0
+                    chunk = data[:end + 1]
                 return self._store(conn, chunk, inode, offset)
             finally:
                 conn.close()
@@ -70,6 +114,12 @@ class Ingestor(threading.Thread):
             for raw in chunk.split(b"\n")[:-1]:
                 line_offset = position
                 position += len(raw) + 1
+                if len(raw) > MAX_LINE_BYTES:
+                    event_id = hashlib.sha256(f"{self.log_path}|{inode}|{line_offset}|oversized".encode()).hexdigest()
+                    conn.execute("INSERT OR IGNORE INTO raw_events VALUES (?,?,?,?,?)",
+                                 (event_id, None, None, "error.oversized", json.dumps({"error": "Oversized log line discarded"})))
+                    self.stats["errors"] += 1
+                    continue
                 line = raw.decode("utf-8", errors="replace").strip()
                 if not line:
                     continue
@@ -97,8 +147,16 @@ class Ingestor(threading.Thread):
                            VALUES (?,?,?,?,?)
                            ON CONFLICT(session_id) DO UPDATE SET
                              src_ip     = COALESCE(sessions.src_ip, excluded.src_ip),
-                             start_time = MIN(sessions.start_time, excluded.start_time),
-                             end_time   = MAX(sessions.end_time, excluded.end_time),
+                             start_time = CASE
+                                 WHEN sessions.start_time IS NULL THEN excluded.start_time
+                                 WHEN excluded.start_time IS NULL THEN sessions.start_time
+                                 ELSE MIN(sessions.start_time, excluded.start_time)
+                             END,
+                             end_time = CASE
+                                 WHEN sessions.end_time IS NULL THEN excluded.end_time
+                                 WHEN excluded.end_time IS NULL THEN sessions.end_time
+                                 ELSE MAX(sessions.end_time, excluded.end_time)
+                             END,
                              is_closed  = MAX(sessions.is_closed, excluded.is_closed)""",
                         (session, event.get("src_ip"), ts, ts, closed))
                     touched.add(session)
@@ -144,8 +202,13 @@ class Ingestor(threading.Thread):
         with self.lock:
             conn = db.connect()
             try:
-                for table in ("raw_events", "sessions", "alerts", "checkpoints"):
-                    conn.execute(f"DELETE FROM {table}")
+                for statement in (
+                    "DELETE FROM raw_events",
+                    "DELETE FROM sessions",
+                    "DELETE FROM alerts",
+                    "DELETE FROM checkpoints",
+                ):
+                    conn.execute(statement)
                 if os.path.exists(self.log_path):
                     st = os.stat(self.log_path)
                     conn.execute("INSERT INTO checkpoints VALUES (?,?,?)",

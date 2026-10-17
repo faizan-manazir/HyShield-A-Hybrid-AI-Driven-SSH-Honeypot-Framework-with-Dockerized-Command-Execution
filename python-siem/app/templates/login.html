@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - HyShield SIEM</title><link rel="stylesheet" href="/static/style.css?v=22"><script src="/static/form-transport.js?v=1" defer></script></head>
+<body><main style="max-width:480px;margin:8vh auto;padding:24px">
+  <div class="card pad">
+    <h1>HyShield SIEM</h1><p class="sub">Sign in to your security operations workspace.</p>
+    {% if error %}<div class="danger-zone" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <div class="field"><label class="f" for="username">Username</label><input id="username" name="username" autocomplete="username" required maxlength="64"></div>
+      <div class="field"><label class="f" for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+  </div>
+</main></body></html>

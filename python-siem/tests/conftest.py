@@ -8,7 +8,6 @@ from pathlib import Path
 TMP = Path(tempfile.mkdtemp(prefix="hyshield-test-"))
 os.environ["HYSHIELD_DATA"] = str(TMP)
 os.environ["HYSHIELD_GEO"] = "off"
-os.environ["DEMO_MODE"] = "true"
 os.environ["POLL_SECONDS"] = "3600"   # tests call poll() themselves
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

@@ -19,3 +19,8 @@ siem-dashboard/backend/test_data/cowrie.json
 
 # Node.js dependencies
 node_modules/
+
+# HyShield Python SIEM runtime secrets and configuration
+python-siem/data/auth_secret
+python-siem/data/settings.json
+python-siem/data/.settings-*.tmp

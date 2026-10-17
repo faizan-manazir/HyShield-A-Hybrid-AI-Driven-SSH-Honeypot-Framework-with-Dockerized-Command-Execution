@@ -75,7 +75,7 @@
         <td><span class="badge {{ n.riskLevel }}">{{ n.riskLevel }}</span></td><td>{{ n.threatScore }}</td><td>{{ n.sessionCount }}</td><td>{{ n.eventCount }}</td>
         <td><a href="/explorer?q={{ n.ip|urlencode }}">Inspect events →</a></td>
       </tr>
-    {% else %}<tr><td colspan="9" class="empty">No public source coordinates available yet. Private IPs are not geolocatable unless demo mode is enabled.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="9" class="empty">No public source coordinates are available yet. Private and reserved IPs cannot be geolocated publicly.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

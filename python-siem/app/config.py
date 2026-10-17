@@ -5,6 +5,10 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("HYSHIELD_DATA", BASE / "data"))
 DATA.mkdir(parents=True, exist_ok=True)
+try:
+    DATA.chmod(0o700)
+except OSError:
+    pass  # Windows and restricted filesystems may not support POSIX modes
 
 # Cowrie JSON log that gets tailed (new lines are picked up automatically)
 LOG_PATH = Path(os.environ.get("COWRIE_LOG_PATH", DATA / "cowrie.json"))
@@ -15,10 +19,11 @@ SETTINGS_PATH = DATA / "settings.json"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8000"))
 
+# Set true whenever HTTPS terminates in front of the ASGI app.
+COOKIE_SECURE = os.environ.get("HYSHIELD_COOKIE_SECURE", "false").lower() in ("1", "true", "yes")
+
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "2"))
 
-# DEMO_MODE=true gives private/loopback IPs a fake (but stable) country so the map has dots.
-DEMO_MODE = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")
 # HYSHIELD_GEO=off stops the app from calling the HTTPS IP geolocation provider.
 GEO_LOOKUP = os.environ.get("HYSHIELD_GEO", "on").lower() != "off"
 

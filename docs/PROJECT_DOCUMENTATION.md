@@ -23,7 +23,6 @@ HyShield is a research and educational SSH honeypot framework built around Cowri
 - Return plausible terminal output to sustain honeypot interaction.
 - Record activity for later analysis.
 - Provide a dashboard for alert triage, event search, actor review, session inspection, and approximate geographic visualization.
-- Support local demonstrations with synthetic Cowrie-shaped events.
 
 ### Limitations
 - IP geolocation does not establish an attacker's identity or precise physical location.
@@ -154,6 +153,16 @@ The script sets a fixed `PYTHONPATH`, calls scripts using absolute `/home/faizan
 7. FastAPI renders pages and JSON responses.
 8. Analyst reviews an alert and inspects associated session evidence.
 
+## SIEM accounts and roles
+
+The Python SIEM requires a user account before protected routes are available. On a new database, create the initial Super Admin at `/setup`, then sign in at `/login`. The setup route is disabled once a user exists.
+
+- **Super Admin:** full SIEM access, settings and account management, destructive actions, and audit logs.
+- **Security Analyst:** read/investigate telemetry, close alerts, and use the test-event generator; no user management, settings, or purge.
+- **Read-Only Auditor:** read-only dashboard and investigation access plus administrative audit-log viewing.
+
+Passwords are stored as scrypt hashes. Signed HttpOnly session cookies expire after eight hours. Keep `python-siem/data/auth_secret` private and persistent, or configure `HYSHIELD_AUTH_SECRET`. Authorization is checked on the backend, not only by hiding navigation links. Audit/authentication events are stored in SQLite and available at `/audit-logs` to Super Admins and Auditors.
+
 ## 7. Python SIEM components
 
 | Path | Responsibility |
@@ -168,12 +177,17 @@ The script sets a fixed `PYTHONPATH`, calls scripts using absolute `/home/faizan
 | `python-siem/app/geo.py` | IP classification, asynchronous geolocation, caching. |
 | `python-siem/app/charts.py` | SVG charts and threat map. |
 | `python-siem/app/settings.py` | Persistent settings and safe public settings view. |
-| `python-siem/app/test_generator.py` | Synthetic Cowrie event generator. |
 | `python-siem/app/templates/` | Jinja templates. |
 | `python-siem/app/static/` | JavaScript, CSS, and map assets. |
-| `python-siem/tools/` | CLI simulation utilities. |
 
 See [Python SIEM detailed documentation](../python-siem/docs/PROJECT_DOCUMENTATION.md) for subsystem-level detail.
+
+### Current SIEM behavior notes
+
+- The refreshable dashboard pages poll every **5 seconds**; Event Explorer does so when Auto-refresh is enabled. This is browser polling, not a guarantee of end-to-end ingestion latency.
+- Event Explorer applies its search and category filters in SQL before applying the result limit, avoiding missed older matches caused by filtering only a limited recent-event subset.
+- Session timestamp upserts preserve an existing non-null start/end time when an incoming Cowrie record omits that timestamp.
+- To validate the Python SIEM after changes, run `python -m pytest -q` from `python-siem/` and review the actual test output.
 
 ## 8. Dashboard routes
 
@@ -189,7 +203,6 @@ See [Python SIEM detailed documentation](../python-siem/docs/PROJECT_DOCUMENTATI
 | `/sessions` | Session list. |
 | `/sessions/{id}` | Session evidence and score explanation. |
 | `/settings` | Local settings. |
-| `/generator` | Synthetic event generator. |
 | `/docs` | FastAPI interactive API documentation. |
 
 ### Investigation Priorities vs Recent Alerts
@@ -273,7 +286,7 @@ Default UI: `http://127.0.0.1:8000`; API explorer: `http://127.0.0.1:8000/docs`.
 
 For a lab/Codespaces preview:
 ```bash
-HOST=0.0.0.0 PORT=8000 DEMO_MODE=true python run.py
+HOST=0.0.0.0 PORT=8000  python run.py
 ```
 Binding to all interfaces can expose the service through the environment. Do so only when necessary and with appropriate access controls.
 
@@ -301,21 +314,11 @@ Binding to all interfaces can expose the service through the environment. Do so 
 | `HOST` | `127.0.0.1`. |
 | `PORT` | `8000`. |
 | `POLL_SECONDS` | `2` seconds between ingestion polls. |
-| `DEMO_MODE` | Off by default; synthetic locations for private/loopback IPs in demo maps. |
 | `HYSHIELD_GEO` | Enabled unless set to `off`; public lookups use ipwho.is over HTTPS. |
 | `HONEYPOT_NAME` | Map sensor label. |
 | `HONEYPOT_LAT`, `HONEYPOT_LNG` | Map sensor coordinates (default Islamabad coordinates). |
 | `HONEYPOT_CITY`, `HONEYPOT_COUNTRY` | Map sensor labels (default Islamabad/Pakistan). |
 | `ANALYST_LAN_IP` | Optional lab/analyst IP displayed specially on the map. |
-
-## 13. Synthetic data and demo mode
-
-The local event generator writes Cowrie-shaped JSON lines using documentation TEST-NET addresses; it does not send network traffic. Generated events pass through normal ingestion and correlation, changing metrics, sessions, alerts, and maps.
-
-- Use a separate test log/database for demonstrations.
-- Do not mix synthetic events with real investigation evidence.
-- Private IP demo locations are synthetic and must not be presented as attribution.
-- Clearly label synthetic screenshots and presentation data.
 
 ## 14. Security and privacy checklist
 
@@ -327,7 +330,7 @@ Before deployment beyond a local lab:
 - [ ] Do not rely on the command blocklist as the primary security boundary.
 - [ ] Keep API keys and active passwords out of source control, logs, and screenshots.
 - [ ] Replace hard-coded host paths with configuration.
-- [ ] Add authentication/authorization before remote SIEM access; the SIEM README notes that no login is currently provided.
+- [ ] Validate login, logout, Super Admin/Analyst/Auditor permissions, account disablement, and audit logging before remote SIEM access.
 - [ ] Use an authenticated VPN/reverse proxy for remote access.
 - [ ] Restrict database/log permissions and define retention/backups.
 - [ ] Disable external geolocation if data transfer is not approved.
@@ -433,7 +436,6 @@ Recommended process:
 - **Correlation:** grouping/interpreting events to identify patterns.
 - **Risk score:** heuristic estimate used for triage.
 - **MITRE ATT&CK:** knowledge base of adversary tactics and techniques.
-- **TEST-NET:** IP ranges reserved for documentation/examples.
 - **Chain of custody:** documented evidence handling from collection through analysis.
 
 ## 19. References

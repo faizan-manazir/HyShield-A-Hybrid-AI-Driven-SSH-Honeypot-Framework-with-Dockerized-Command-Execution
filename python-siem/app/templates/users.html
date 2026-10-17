@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}User Management - HyShield{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>User Management</h1><p class="sub">Create accounts and assign least-privilege roles.</p></div></div>
+{% if saved %}<div class="ok-banner">✓ User changes saved.</div>{% endif %}
+{% if error %}<div class="danger-zone" role="alert">{{ error }}</div>{% endif %}
+<div class="card pad">
+  <h3>Create account</h3>
+  <form method="post" action="/users">
+    <div class="field"><label class="f" for="username">Username</label><input id="username" name="username" required minlength="3" maxlength="64" autocomplete="off"></div>
+    <div class="field"><label class="f" for="password">Temporary password (12+ characters)</label><input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"></div>
+    <div class="field"><label class="f" for="role">Role</label><select id="role" name="role" required><option value="analyst">Security Analyst</option><option value="auditor">Read-Only Auditor</option><option value="super_admin">Super Admin</option></select></div>
+    <button class="btn primary" type="submit">Create user</button>
+  </form>
+</div>
+<div class="card pad" style="margin-top:20px"><h3>Existing accounts</h3>
+  <div class="table-wrap"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody>
+  {% for user in users %}<tr><td>{{ user.username }}</td><td>{{ role_labels.get(user.role, user.role) }}</td><td>{{ 'Active' if user.active else 'Disabled' }}</td><td>{{ user.created_at or '-' }}</td><td>
+    {% if user.active %}
+      {% if user.role == "super_admin" %}
+        <span class="muted" title="Super Admin accounts cannot be disabled">Protected</span>
+      {% elif current_user and current_user.id == user.id %}
+        <span class="muted" title="You cannot disable your own account">Current account</span>
+      {% else %}
+        <form method="post" action="/users/{{ user.id }}/disable"><button class="btn danger" type="submit">Disable</button></form>
+      {% endif %}
+    {% else %}<form method="post" action="/users/{{ user.id }}/enable"><button class="btn" type="submit">Enable</button></form>{% endif %}
+  </td></tr>
+  <tr><td colspan="5">
+    <details><summary>Edit {{ user.username }} account details</summary>
+      <form method="post" action="/users/{{ user.id }}/update" class="user-edit-form">
+        <div class="field"><label class="f" for="edit-username-{{ user.id }}">Username</label><input id="edit-username-{{ user.id }}" name="username" value="{{ user.username }}" required minlength="3" maxlength="64" autocomplete="off"></div>
+        <div class="field"><label class="f" for="edit-role-{{ user.id }}">Role</label><select id="edit-role-{{ user.id }}" name="role" required>
+          <option value="super_admin" {% if user.role == 'super_admin' %}selected{% endif %}>Super Admin</option>
+          <option value="analyst" {% if user.role == 'analyst' %}selected{% endif %}>Security Analyst</option>
+          <option value="auditor" {% if user.role == 'auditor' %}selected{% endif %}>Read-Only Auditor</option>
+        </select></div>
+        <div class="field"><label class="f" for="edit-password-{{ user.id }}">New password (optional, 12+ characters)</label><input id="edit-password-{{ user.id }}" name="password" type="password" minlength="12" maxlength="1024" autocomplete="new-password" placeholder="Leave blank to keep current password"></div>
+        <button class="btn primary" type="submit">Save account details</button>
+      </form>
+    </details>
+  </td></tr>
+  {% else %}<tr><td colspan="5">No users found.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}
