@@ -57,10 +57,15 @@ def _make(ip, code, country, city, lat, lng, org, private=False, region="",
 
 def _fetch(ip):
     """Resolve a public IP over HTTPS. Coordinates are estimates, never GPS-precise."""
-    url = (f"https://ipwho.is/{ip}"
+    # Canonicalize the address before interpolating it; the hostname and scheme are fixed.
+    address = ipaddress.ip_address(ip)
+    if not address.is_global:
+        raise ValueError("Only globally routable IP addresses can be geolocated")
+    url = (f"https://ipwho.is/{address.compressed}"
            "?fields=success,message,ip,continent,country,country_code,region,region_code,city,"
            "latitude,longitude,connection,timezone,security")
     request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HyShield-SIEM/1.0"})
+    # nosec B310: fixed HTTPS provider URL; only a canonicalized IP literal is variable.
     with urllib.request.urlopen(request, timeout=7) as resp:
         data = json.load(resp)
     if data.get("success") is not True:
