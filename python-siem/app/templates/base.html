@@ -53,7 +53,7 @@
     <header class="topbar">
       <div class="topbar-context"><span class="topbar-kicker">SECURITY OPERATIONS</span><span class="topbar-slash">/</span><span class="topbar-current">HyShield SIEM</span></div>
       <div class="topbar-actions"><span class="workspace-pill"><span class="workspace-dot"></span> COWRIE TELEMETRY</span><a class="topbar-search" href="/explorer"><span class="search-glyph">⌕</span> Search telemetry <kbd>/</kbd></a>
-        {% if current_user %}<span class="workspace-pill">{{ current_user.username }} · {{ role_labels.get(current_user.role, current_user.role) }}</span><form method="post" action="/logout"><button class="btn" type="submit">Sign out</button></form>{% endif %}
+        {% if current_user %}<span class="user-identity"><span class="user-identity-name">{{ current_user.username }}</span><span class="role-chip role-{{ current_user.role }}">{{ role_labels.get(current_user.role, current_user.role) }}</span></span><form method="post" action="/logout"><button class="btn" type="submit">Sign out</button></form>{% endif %}
       </div>
     </header>
     <div class="wrap">{% block content %}{% endblock %}</div>
