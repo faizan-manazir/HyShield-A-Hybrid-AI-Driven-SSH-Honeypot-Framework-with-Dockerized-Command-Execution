@@ -223,17 +223,52 @@ def test_ip_geolocation_provider_uses_https_and_parses_coordinates(monkeypatch):
 
 
 def test_overview_priority_queue_excludes_closed_alerts(client):
-    from app import queries
+    import secrets
+    from app import db, queries
 
-    priority_alerts = queries.overview()["priorityAlerts"]
-    if not priority_alerts:
-        pytest.skip("sample telemetry produced no open priority alerts")
+    # Create this test's own session and highest-priority alert. Do not rely on
+    # whatever sample telemetry or database state happens to exist in CI.
+    suffix = secrets.token_hex(6)
+    session_id = "pytest-priority-" + suffix
+    alert_id = "pytest-alert-" + suffix
+    conn = db.connect()
+    try:
+        conn.execute(
+            """INSERT INTO sessions
+               (session_id, src_ip, start_time, end_time, is_closed, threat_score,
+                risk_level, event_count, summary)
+               VALUES (?, ?, ?, NULL, 0, 100, 'CRITICAL', 1, '{}')""",
+            (session_id, "198.51.100.254", "9999-12-31T23:59:59Z"),
+        )
+        conn.execute(
+            """INSERT INTO alerts
+               (id, session_id, severity, title, reason, mitre, status)
+               VALUES (?, ?, 'CRITICAL', 'Pytest priority alert',
+                       'Created by regression test', '[]', 'OPEN')""",
+            (alert_id, session_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
-    target = priority_alerts[0]
-    assert queries.close_alert(target["id"]) is True
+    try:
+        priority_alerts = queries.overview()["priorityAlerts"]
+        assert any(item["id"] == alert_id for item in priority_alerts), (
+            "test-created critical alert should appear in the overview priority queue"
+        )
 
-    queued = queries.overview()["priorityAlerts"]
-    assert all(item["id"] != target["id"] for item in queued)
+        assert queries.close_alert(alert_id) is True
+
+        queued = queries.overview()["priorityAlerts"]
+        assert all(item["id"] != alert_id for item in queued)
+    finally:
+        conn = db.connect()
+        try:
+            conn.execute("DELETE FROM alerts WHERE id=?", (alert_id,))
+            conn.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+            conn.commit()
+        finally:
+            conn.close()
 
 
 
