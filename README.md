@@ -1,144 +1,71 @@
 # 🛡️ HyShield
 
-### Hybrid AI-Driven SSH Honeypot Framework with Dockerized Command Execution and Privacy-Preserving Telemetry
+## Hybrid AI-Driven SSH Honeypot with Dockerized Command Execution and Python SIEM Dashboard
 
-HyShield is a hybrid AI-driven SSH honeypot prototype built on top of **Cowrie**. It extends a traditional SSH honeypot with a custom command-processing pipeline that executes attacker commands inside an isolated Docker environment, sanitizes the resulting output, optionally refines responses using AI, and returns realistic responses to the attacker through Cowrie.
+HyShield is a research and educational SSH honeypot framework built around [Cowrie](https://github.com/cowrie/cowrie). It routes interactive shell commands through a custom bridge, executes them in a Docker-based Ubuntu environment, sanitizes output, and can optionally use an AI service to refine selected responses. Cowrie records the interactions as telemetry, which the **Python SIEM dashboard** can ingest for triage and investigation.
 
-> **Research and educational project.** HyShield is designed for authorized cybersecurity research, experimentation, deception technology, and honeypot development.
+> **Research prototype:** Use only in an authorized, isolated lab. A Docker container is not equivalent to a virtual machine, and this project should not be exposed to the public Internet without a careful security review. The current implementation does not provide blockchain-based logging or a verified privacy-preserving analytics mechanism.
 
----
+## What is in the project?
 
-## 📚 Complete project documentation
+- **Cowrie SSH honeypot** — accepts SSH sessions and records login attempts, commands, and session activity.
+- **HyShield bridge** — connects Cowrie's modified LLM backend to the command-processing pipeline over a local TCP socket.
+- **Docker executor** — runs commands in the `fake-ubuntu` container rather than directly in the host shell.
+- **Output sanitizer** — removes selected container/environment indicators from command output.
+- **Optional AI refiner** — uses the configured Groq API/model to refine output when enabled and available.
+- **Python SIEM dashboard** — ingests Cowrie JSON-lines logs, stores events and derived session/alert information in SQLite, and provides an authenticated investigation UI.
 
-For the end-to-end guide covering architecture, components, command and telemetry flows, installation, configuration, SIEM, detection logic, security caveats, testing, and troubleshooting, see **[Complete Project Documentation](docs/PROJECT_DOCUMENTATION.md)**.
-
-## 📌 Architecture
-
-```text
-                         ┌──────────────────┐
-                         │    Attacker      │
-                         │   SSH Session    │
-                         └────────┬─────────┘
-                                  │
-                                  ▼
-                    ┌─────────────────────────┐
-                    │     Cowrie Honeypot     │
-                    │       SSH Service       │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │   Modified Cowrie LLM   │
-                    │       Backend           │
-                    │        llm.py           │
-                    └────────────┬────────────┘
-                                 │
-                                 │ TCP
-                                 ▼
-                    ┌─────────────────────────┐
-                    │    Custom Bridge Server │
-                    │   bridge_server.py      │
-                    │        Port 5050        │
-                    └────────────┬────────────┘
-                                 │
-                 ┌───────────────┼────────────────┐
-                 │               │                │
-                 ▼               ▼                ▼
-        ┌────────────────┐ ┌──────────────┐ ┌─────────────┐
-        │ Docker Executor│ │  Sanitizer   │ │ AI Refiner  │
-        │                │ │              │ │             │
-        └───────┬────────┘ └──────┬───────┘ └──────┬──────┘
-                │                 │                │
-                ▼                 └───────┬────────┘
-        ┌─────────────────────┐           │
-        │ fake-ubuntu Docker  │           │
-        │      Container      │◄──────────┘
-        └──────────┬──────────┘
-                   │
-                   ▼
-          ┌─────────────────┐
-          │ Sanitized / AI  │
-          │ Refined Output  │
-          └────────┬────────┘
-                   │
-                   ▼
-              Back to Cowrie
-                   │
-                   ▼
-                Attacker
-```
-
----
-
-## ✨ Features
-
-- 🍯 SSH honeypot based on Cowrie
-- 🔄 Custom bridge between Cowrie and the HyShield processing engine
-- 🐳 Docker-isolated command execution
-- 💻 Real command execution inside a controlled fake Linux environment
-- 🧹 Output sanitization to reduce Docker/environment fingerprints
-- 🤖 AI-assisted command-output refinement
-- 🔐 Randomized honeypot password generation
-- 🧠 Session and execution state management
-- 📡 TCP bridge communication
-- 📊 Cowrie attack logging
-- 🐧 Realistic Linux command interaction
-
----
-
-# 🔄 Command Processing Flow
-
-When an attacker enters a command, HyShield processes it through the following pipeline:
+## Architecture and data flow
 
 ```text
-Attacker enters command
-        │
-        ▼
-Cowrie receives command
-        │
-        ▼
-Modified llm.py intercepts/forwards request
-        │
-        ▼
-Bridge Server receives request
-        │
-        ▼
-Docker Executor executes command
-        │
-        ▼
-fake-ubuntu container
-        │
-        ▼
-Command output generated
-        │
-        ▼
-Sanitizer removes unwanted traces
-        │
-        ▼
-AI Refiner processes output
-        │
-        ▼
-Response sent back through Bridge
-        │
-        ▼
-Cowrie displays response
-        │
-        ▼
-Attacker receives output
+                     Authorized test client / SSH activity
+                                      |
+                                      v
+                            Cowrie SSH Honeypot
+                                      |
+                                      v
+                         Modified Cowrie backend (llm.py)
+                                      |
+                           local TCP: 127.0.0.1:5050
+                                      |
+                                      v
+                               bridge_server.py
+                                      |
+                                      v
+                               docker_executor.py
+                                      |
+                                      v
+                          fake-ubuntu Docker container
+                                      |
+                                      v
+                               sanitizer.py
+                                      |
+                                      v
+                       optional ai_refiner.py (Groq)
+                                      |
+                                      v
+                           response returned to Cowrie
+                                      |
+                                      v
+                         Cowrie JSON-lines log file
+                                      |
+                                      v
+                        Python SIEM log ingestor
+                                      |
+                                      v
+                           SQLite + correlation rules
+                                      |
+                                      v
+                         Authenticated SIEM dashboard
 ```
 
----
+The honeypot command-response path and the SIEM are related but distinct components. The SIEM consumes Cowrie telemetry; it does not execute attacker commands.
 
-# 📁 Repository Structure
+## Repository layout
 
 ```text
 HyShield/
-│
 ├── README.md
-├── LICENSE
-├── .gitignore
-├── requirements.txt
-│
 ├── start.sh
 ├── update_password.py
 ├── bridge_server.py
@@ -146,1006 +73,307 @@ HyShield/
 ├── sanitizer.py
 ├── ai_refiner.py
 ├── state.py
-│
-└── cowrie-modifications/
-    │
-    ├── cowrie.cfg
-    │
-    └── src/
-        └── cowrie/
-            ├── llm/
-            │   └── llm.py
+├── cowrie-modifications/
+│   ├── cowrie.cfg
+│   └── src/cowrie/llm/llm.py
+└── python-siem/
+    ├── run.py
+    ├── requirements.txt
+    ├── app/
+    ├── tests/
+    └── docs/
+        └── PROJECT_DOCUMENTATION.md
 ```
 
----
+The **only supported SIEM dashboard in this repository is `python-siem/`**. The retired legacy Node.js/Next.js dashboard has been removed.
 
-# 📄 Core Components
+## Requirements
 
-## `start.sh`
+For the honeypot, use an Ubuntu Linux host or isolated VM with:
 
-The main startup script.
+- Git, Python 3, `python3-venv`, and build tools
+- Docker Engine
+- Network access for initial package installation
+- A Groq API key only if AI refinement is used
 
-It performs the startup workflow for HyShield:
+For the dashboard:
 
-1. Sets the required Python path
-2. Randomizes the honeypot password
-3. Saves the active password
-4. Activates the Cowrie virtual environment
-5. Starts the Docker container
-6. Starts the bridge server
-7. Launches Cowrie
+- Python 3.10 or newer, compatible with the dependencies
+- Packages in `python-siem/requirements.txt`
+- Read access to a Cowrie JSON-lines log and write access to the SIEM data directory
 
----
-
-## `update_password.py`
-
-Selects a random password from the configured honeypot credentials and updates the active authentication configuration.
-
-The currently selected password is saved to:
-
-```text
-active_password.txt
-```
-
-Check the active password:
-
-```bash
-cat ~/cowrie/active_password.txt
-```
+Keep the honeypot and dashboard on a private lab network. Do not reuse real credentials in the decoy environment.
 
 ---
 
-## `bridge_server.py`
+# Step-by-step: deploy the honeypot
 
-The central communication component of HyShield.
+These instructions describe the repository's intended Ubuntu workflow. Check the actual configuration and file paths in your checkout before running commands; Cowrie versions and local deployments can differ.
 
-It receives requests from the modified Cowrie backend and coordinates command processing with the custom execution pipeline.
-
-The bridge server runs on the configured local TCP port, currently:
-
-```text
-localhost:5050
-```
-
----
-
-## `docker_executor.py`
-
-Executes attacker commands inside the isolated Docker environment.
-
-HyShield uses a container named:
-
-```text
-fake-ubuntu
-```
-
-This prevents commands from being executed directly on the host system.
-
----
-
-## `sanitizer.py`
-
-Processes command output before it is returned to the attacker.
-
-Its purpose is to reduce unwanted implementation details and environment fingerprints that could reveal the underlying execution environment.
-
----
-
-## `ai_refiner.py`
-
-Provides AI-assisted response processing.
-
-The AI component can refine command responses before they are returned through Cowrie.
-
----
-
-## `state.py`
-
-Manages execution or session state required by the command-processing pipeline.
-
-This helps preserve interaction context across commands.
-
----
-
-## `cowrie-modifications/cowrie.cfg`
-
-This is the **modified Cowrie configuration from the working HyShield prototype**.
-
-It contains the custom configuration required for the Cowrie-to-HyShield integration.
-
-Do not replace this file with a default Cowrie configuration without reapplying the required modifications.
-
----
-
-## `cowrie-modifications/src/cowrie/llm/llm.py`
-
-This is the **modified Cowrie LLM backend used by HyShield**.
-
-It is a critical part of the integration between Cowrie and the custom bridge server.
-
-The processing flow depends on this modified file:
-
-```text
-Cowrie
-   ↓
-Modified llm.py
-   ↓
-HyShield Bridge Server
-   ↓
-Docker Execution Pipeline
-```
-
-Do not replace it with the default Cowrie version unless you intentionally remove the HyShield integration.
-
----
-
-# 🖥️ System Requirements
-
-- Ubuntu Linux
-- Python 3
-- Python virtual environment support
-- Docker
-- Git
-- Internet connection for initial package installation
-- A valid API configuration if AI refinement is enabled
-
----
-
-# ⚙️ Installation
-
-## 1. Update Ubuntu
+## Step 1 — Install system packages
 
 ```bash
 sudo apt update
-sudo apt upgrade -y
+sudo apt install -y git python3 python3-pip python3-venv python3-dev \
+  build-essential libssl-dev libffi-dev docker.io
 ```
 
----
-
-## 2. Install Required System Packages
-
-```bash
-sudo apt install -y \
-python3 \
-python3-pip \
-python3-venv \
-python3-dev \
-git \
-docker.io \
-build-essential \
-libssl-dev \
-libffi-dev
-```
-
-Verify Python:
+Verify the tools:
 
 ```bash
 python3 --version
-```
-
-Verify Docker:
-
-```bash
+git --version
 docker --version
 ```
 
-Verify Git:
+Enable Docker:
 
 ```bash
-git --version
-```
-
----
-
-# 🐳 Docker Setup
-
-Enable and start Docker:
-
-```bash
-sudo systemctl enable docker
-sudo systemctl start docker
-```
-
-Check Docker:
-
-```bash
+sudo systemctl enable --now docker
 sudo systemctl status docker
 ```
 
-Check Docker containers:
+If you grant your account Docker-group access, be aware that membership in the Docker group is effectively a high-privilege host permission. Apply it only to a trusted lab account. After adding a user to the group, sign out and back in before testing access.
 
-```bash
-docker ps -a
-```
-
-If your user cannot run Docker commands without `sudo`, add the current user to the Docker group:
-
-```bash
-sudo usermod -aG docker $USER
-```
-
-After running this command, log out and log back in.
-
-You can verify Docker access with:
-
-```bash
-docker ps
-```
-
----
-
-# 🍯 Cowrie Installation
-
-## 1. Clone Cowrie
-
-```bash
-cd ~
-git clone https://github.com/cowrie/cowrie.git
-```
-
-Enter the Cowrie directory:
-
-```bash
-cd ~/cowrie
-```
-
----
-
-## 2. Create the Python Virtual Environment
-
-```bash
-python3 -m venv cowrie-env
-```
-
-Activate it:
-
-```bash
-source cowrie-env/bin/activate
-```
-
-Your terminal should now show the active virtual environment.
-
----
-
-## 3. Upgrade Pip
-
-```bash
-pip install --upgrade pip
-```
-
----
-
-## 4. Install Cowrie Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-Install Cowrie:
-
-```bash
-pip install -e .
-```
-
----
-
-## 5. Create Required Runtime Directories
-
-```bash
-mkdir -p ~/cowrie/var/log/cowrie
-mkdir -p ~/cowrie/var/run
-```
-
----
-
-# 🛡️ Install HyShield
-
-Clone the HyShield repository:
+## Step 2 — Clone HyShield and Cowrie
 
 ```bash
 cd ~
 git clone https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution.git
+git clone https://github.com/cowrie/cowrie.git
 ```
 
-Enter the project directory:
+Create and activate Cowrie's virtual environment:
 
 ```bash
-cd ~/HyShield
+cd ~/cowrie
+python3 -m venv cowrie-env
+source cowrie-env/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
 ```
 
----
-
-# 📦 Install HyShield Dependencies
-
-Activate the Cowrie environment:
+Install HyShield's dependencies into the same environment if required by the current root `requirements.txt`:
 
 ```bash
-source ~/cowrie/cowrie-env/bin/activate
+pip install -r ~/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/requirements.txt
 ```
 
-Install the HyShield requirements:
+## Step 3 — Create the isolated execution container
+
+The executor expects a container named `fake-ubuntu`. Create it if it does not already exist:
 
 ```bash
-pip install -r ~/HyShield/requirements.txt
+docker run -dit --name fake-ubuntu ubuntu:22.04 /bin/bash
+docker exec fake-ubuntu bash -c "mkdir -p /var/www/html /home/john /home/deploy /root/projects"
+docker exec fake-ubuntu bash -c "touch /var/www/html/index.php /var/www/html/wp-login.php /root/deploy.sh /root/backup.sh"
+docker ps
 ```
 
----
+The decoy content is for controlled honeypot interaction, not a real production application. Do not mount sensitive host directories or the Docker socket into this container. Review container privileges, capabilities, network access, resource limits, and image updates before deployment.
 
-# 🔧 Install the HyShield Engine Files
+## Step 4 — Install the HyShield bridge components
 
-Copy the custom HyShield files into the Cowrie directory:
+Copy the current root-level HyShield engine files into the Cowrie checkout:
 
 ```bash
-cp ~/HyShield/bridge_server.py ~/cowrie/
+cd ~/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution
+cp start.sh update_password.py bridge_server.py docker_executor.py sanitizer.py ai_refiner.py state.py ~/cowrie/
 ```
+
+If your local checkout has a different directory name, replace the path above with the actual cloned directory. Do not overwrite an existing working installation without backing it up first.
+
+## Step 5 — Apply the Cowrie integration files
+
+Back up the files first:
 
 ```bash
-cp ~/HyShield/docker_executor.py ~/cowrie/
+cp ~/cowrie/etc/cowrie.cfg ~/cowrie/etc/cowrie.cfg.backup
+cp ~/cowrie/src/cowrie/llm/llm.py ~/cowrie/src/cowrie/llm/llm.py.backup
 ```
+
+Copy the project-provided configuration and modified backend:
 
 ```bash
-cp ~/HyShield/sanitizer.py ~/cowrie/
+cp ~/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/cowrie-modifications/cowrie.cfg ~/cowrie/etc/cowrie.cfg
+cp ~/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/cowrie-modifications/src/cowrie/llm/llm.py ~/cowrie/src/cowrie/llm/llm.py
 ```
+
+Review the resulting configuration before startup. Ensure the SSH listener, bridge address/port, Cowrie backend, JSON logging, and file paths match the current implementation. Do not blindly replace an existing Cowrie configuration if it contains other required settings.
+
+## Step 6 — Configure AI refinement (optional)
+
+The AI refiner uses the Groq client and a configured model. Create a local environment variable in the shell used to launch HyShield:
 
 ```bash
-cp ~/HyShield/ai_refiner.py ~/cowrie/
+export GROQ_API_KEY="paste-your-own-key-here"
 ```
 
-```bash
-cp ~/HyShield/state.py ~/cowrie/
-```
+Use your own provider key and confirm the model identifier supported by your account. Do not hard-code API keys in source files, commit them to Git, or include them in screenshots and logs. If you do not want external AI processing, configure or disable that path according to the current code and test the non-AI behavior.
 
-```bash
-cp ~/HyShield/update_password.py ~/cowrie/
-```
+## Step 7 — Start the honeypot
 
-```bash
-cp ~/HyShield/start.sh ~/cowrie/
-```
-
-Make the startup script executable:
+Make the launcher executable:
 
 ```bash
 chmod +x ~/cowrie/start.sh
 ```
 
----
-
-# ⚠️ Apply the Modified Cowrie Configuration
-
-The HyShield repository contains the **working modified configuration**.
-
-First, back up the existing Cowrie configuration:
-
-```bash
-cp ~/cowrie/etc/cowrie.cfg ~/cowrie/etc/cowrie.cfg.backup
-```
-
-Then copy the HyShield configuration:
-
-```bash
-cp ~/HyShield/cowrie-modifications/cowrie.cfg \
-~/cowrie/etc/cowrie.cfg
-```
-
----
-
-# ⚠️ Apply the Modified `llm.py`
-
-The modified `llm.py` is required for the Cowrie-to-bridge integration.
-
-Back up the original file:
-
-```bash
-cp ~/cowrie/src/cowrie/llm/llm.py \
-~/cowrie/src/cowrie/llm/llm.py.backup
-```
-
-Copy the HyShield version:
-
-```bash
-cp ~/HyShield/cowrie-modifications/src/cowrie/llm/llm.py \
-~/cowrie/src/cowrie/llm/llm.py
-```
-
----
-
-# 🤖 AI Configuration
-
-HyShield can use an AI backend for response refinement.
-
-If the included working configuration requires an API key, configure it according to the code and configuration files in the project.
-
-Do not upload secrets to GitHub.
-
-Recommended approaches include environment variables or a local `.env` file.
-
-For example:
-
-```bash
-export YOUR_API_KEY="your-api-key-here"
-```
-
-Never commit a real API key:
-
-```text
-❌ Do not upload API keys
-❌ Do not upload .env files
-❌ Do not upload private credentials
-```
-
----
-
-# 🐳 Prepare the Fake Ubuntu Container
-
-HyShield expects the Docker execution environment used by the working prototype.
-
-The container name is:
-
-```text
-fake-ubuntu
-```
-
-Check whether it exists:
-
-```bash
-docker ps -a
-```
-
-Look specifically for:
-
-```text
-fake-ubuntu
-```
-
-Start the container:
+Ensure the container is running:
 
 ```bash
 docker start fake-ubuntu
-```
-
-Verify that it is running:
-
-```bash
 docker ps
 ```
 
-Expected output should include the container:
-
-```text
-fake-ubuntu
-```
-
----
-
-# 🚀 Starting HyShield
-
-Go to the Cowrie directory:
+Start HyShield from the Cowrie directory:
 
 ```bash
 cd ~/cowrie
-```
-
-Run:
-
-```bash
 ./start.sh
 ```
 
-The expected startup flow is:
+The script is intended to prepare the password, launch the local bridge, and start Cowrie. Keep the process terminal open and inspect startup output for errors. If startup fails, stop and diagnose the specific component rather than repeatedly launching additional copies.
 
-```text
-┌─────────────────────────────┐
-│      HyShield start.sh      │
-└──────────────┬──────────────┘
-               │
-               ▼
-     Update Random Password
-               │
-               ▼
-      Save Active Password
-               │
-               ▼
-    Activate Cowrie Environment
-               │
-               ▼
-     Start fake-ubuntu Docker
-               │
-               ▼
-       Start Bridge Server
-               │
-               ▼
-    Open Separate Cowrie Terminal
-               │
-               ▼
-          Start Cowrie
-```
+## Step 8 — Validate the honeypot and telemetry
 
----
+From a separate authorized test machine on your lab network, connect to the configured Cowrie SSH port. The supplied configuration uses port `2222`; do not expose or redirect public port 22 until the host firewall, SSH administration access, and isolation have been reviewed.
 
-# 🖥️ Manual Startup
-
-If you want to start every component manually, follow the sequence below.
-
-## Terminal 1 — Start Docker
-
-Check the container:
+After a successful test session, inspect the log:
 
 ```bash
-docker ps -a
-```
-
-Start it:
-
-```bash
-docker start fake-ubuntu
-```
-
-Verify it:
-
-```bash
-docker ps
-```
-
----
-
-## Terminal 2 — Start Bridge Server
-
-```bash
-cd ~/cowrie
-```
-
-Activate the virtual environment:
-
-```bash
-source cowrie-env/bin/activate
-```
-
-Set the Python path:
-
-```bash
-export PYTHONPATH=~/cowrie/src
-```
-
-Start the bridge:
-
-```bash
-python3 bridge_server.py
-```
-
-The bridge server should remain running.
-
----
-
-## Terminal 3 — Start Cowrie
-
-```bash
-cd ~/cowrie
-```
-
-Activate the environment:
-
-```bash
-source cowrie-env/bin/activate
-```
-
-Set the Python path:
-
-```bash
-export PYTHONPATH=~/cowrie/src
-```
-
-Start Cowrie:
-
-```bash
-twistd -n cowrie
-```
-
----
-
-# 🔐 Check the Active Honeypot Password
-
-The startup script generates/selects the active password.
-
-Check it with:
-
-```bash
-cat ~/cowrie/active_password.txt
-```
-
-The output displays the password currently configured for the honeypot.
-
----
-
-# 📡 Check the Bridge Server
-
-Check whether port `5050` is listening:
-
-```bash
-ss -tulpn | grep 5050
-```
-
-Check for the bridge process:
-
-```bash
-ps aux | grep bridge_server.py
-```
-
----
-
-# 🐳 Check Docker
-
-View running containers:
-
-```bash
-docker ps
-```
-
-View all containers:
-
-```bash
-docker ps -a
-```
-
-Enter the fake environment:
-
-```bash
-docker exec -it fake-ubuntu bash
-```
-
-Stop the container:
-
-```bash
-docker stop fake-ubuntu
-```
-
-Restart the container:
-
-```bash
-docker restart fake-ubuntu
-```
-
----
-
-# 📊 View Cowrie Logs
-
-Follow the attack log in real time:
-
-```bash
-tail -f ~/cowrie/var/log/cowrie/cowrie.json
-```
-
-View the latest 50 events:
-
-```bash
+ls -l ~/cowrie/var/log/cowrie/
 tail -n 50 ~/cowrie/var/log/cowrie/cowrie.json
 ```
 
-Search for login attempts:
+Confirm that new events appear and that the log contains one JSON object per line. Try benign commands such as `pwd`, `whoami`, `id`, and `ls` in your authorized test session. Confirm that commands are routed through the bridge and container, and check the terminal output and Cowrie logs for errors.
 
-```bash
-grep "login" ~/cowrie/var/log/cowrie/cowrie.json
-```
-
-Search for commands:
-
-```bash
-grep "command" ~/cowrie/var/log/cowrie/cowrie.json
-```
-
----
-
-# 🧪 Testing HyShield
-
-After starting the system, connect to the configured SSH honeypot from an authorized test environment.
-
-The expected interaction flow is:
-
-```text
-SSH Connection
-     │
-     ▼
-Cowrie Login
-     │
-     ▼
-Authentication Attempt
-     │
-     ▼
-Command Entered
-     │
-     ▼
-Modified llm.py
-     │
-     ▼
-Bridge Server
-     │
-     ▼
-Docker Execution
-     │
-     ▼
-Output Sanitization
-     │
-     ▼
-AI Refinement
-     │
-     ▼
-Response Displayed
-```
-
-Try normal Linux commands after logging into the honeypot, such as:
-
-```text
-pwd
-```
-
-```text
-whoami
-```
-
-```text
-ls
-```
-
-```text
-uname -a
-```
-
-```text
-id
-```
-
-Observe:
-
-1. Cowrie receives the command
-2. The bridge processes the request
-3. The Docker environment executes the command
-4. The output is sanitized
-5. AI refinement is applied when configured
-6. The response is returned to the SSH session
-
----
-
-# 🛠️ Troubleshooting
-
-## Docker Permission Denied
-
-If you see a Docker permission error:
-
-```bash
-sudo usermod -aG docker $USER
-```
-
-Then log out and log in again.
-
----
-
-## `fake-ubuntu` Container Not Found
-
-Check available containers:
+Useful diagnostics:
 
 ```bash
 docker ps -a
-```
-
-If the expected container is missing, recreate the Docker environment used by your working HyShield prototype before starting the project.
-
----
-
-## Bridge Server Does Not Start
-
-Check whether the port is already occupied:
-
-```bash
 ss -tulpn | grep 5050
-```
-
-Find the old bridge process:
-
-```bash
 ps aux | grep bridge_server.py
 ```
 
-Stop old bridge processes if required:
-
-```bash
-pkill -f bridge_server.py
-```
-
-Start the bridge again:
-
-```bash
-cd ~/cowrie
-source cowrie-env/bin/activate
-export PYTHONPATH=~/cowrie/src
-python3 bridge_server.py
-```
+Do not test against systems or networks you do not own or have explicit permission to assess.
 
 ---
 
-## Cowrie Cannot Import Custom Modules
+# Step-by-step: start the Python SIEM dashboard
 
-Make sure the Python path is set:
+The SIEM is a separate Python application in `python-siem/`. Start it after Cowrie is writing telemetry, or point it to an existing sample/test log. Run it in a separate terminal or service from the honeypot.
 
-```bash
-export PYTHONPATH=~/cowrie/src
-```
+## Step 9 — Install SIEM dependencies
 
-Then activate the environment:
+On the host/environment where you want to run the dashboard:
 
 ```bash
-source ~/cowrie/cowrie-env/bin/activate
+cd ~/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/python-siem
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-Start Cowrie:
+On Windows PowerShell, use the equivalent commands:
+
+```powershell
+Set-Location .\python-siem
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## Step 10 — Point the SIEM at Cowrie's JSON log
+
+By default, the SIEM uses a log under its own `data/` directory. Set `COWRIE_LOG_PATH` to the real Cowrie JSON log before starting it. The SIEM process must be able to read that path.
+
+Linux example:
 
 ```bash
-cd ~/cowrie
-twistd -n cowrie
+export COWRIE_LOG_PATH="$HOME/cowrie/var/log/cowrie/cowrie.json"
+python run.py
 ```
+
+Windows PowerShell example (change the path to your actual log location):
+
+```powershell
+$env:COWRIE_LOG_PATH = "C:\path\to\cowrie.json"
+python run.py
+```
+
+If the dashboard is running on a different host or VM from Cowrie, make the log available through a controlled transfer or shared lab path and ensure permissions are appropriate. Do not expose Cowrie logs publicly merely to connect the dashboard.
+
+Optional: disable external geolocation lookups:
+
+```bash
+HYSHIELD_GEO=off python run.py
+```
+
+## Step 11 — Complete first-run account setup
+
+Open:
+
+- Dashboard: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+- API explorer: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+On a fresh database, create the initial Super Admin at the setup page. Then sign in. Protect the SIEM data directory, database, and authentication secret. The default host is localhost; do not bind to `0.0.0.0` or forward the port beyond the intended lab network without appropriate access controls and HTTPS.
+
+## Step 12 — Verify ingestion and investigate
+
+1. Generate a benign test event by using your authorized SSH session against Cowrie.
+2. Confirm a new JSON line appears in `cowrie.json`.
+3. Confirm the SIEM process can read the file and that the event appears in the dashboard after ingestion.
+4. Open Overview and inspect Investigation Priorities and Recent Alerts.
+5. Use Event Explorer to search for the test source IP or session.
+6. Open the session timeline and compare the displayed data with the original Cowrie log.
+7. Treat scores, ATT&CK mappings, and geolocation as investigation aids, not definitive proof or attribution.
+8. Test alert closure and other administrative actions only with test data and the appropriate account role.
+
+If no events appear, verify `COWRIE_LOG_PATH`, file permissions, valid newline-terminated JSON records, and the SIEM console output.
+
+## Dashboard pages
+
+The Python SIEM includes the overview, alert queue, event explorer, actor/session investigation, ATT&CK view, map/geolocation, settings, user management, audit logs, and HTML report export. Exact routes and permissions may change; consult the live `/docs` endpoint and the [Python SIEM documentation](python-siem/docs/PROJECT_DOCUMENTATION.md).
+
+## Troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| Docker permission denied | Docker service status and account permissions; reconnect after group changes. |
+| `fake-ubuntu` missing/stopped | `docker ps -a`; create or start the expected container. |
+| Bridge cannot bind to port 5050 | Check for an existing process with `ss -tulpn | grep 5050`. |
+| Cowrie cannot import the modified backend | Verify `PYTHONPATH`, virtual environment, and the copied `llm.py`. |
+| AI refinement errors | Check the API key, network access, provider quota, and model availability; verify fallback behavior. |
+| SIEM shows no events | Check `COWRIE_LOG_PATH`, file read permissions, JSON line validity, and SIEM console logs. |
+| Dashboard cannot start on port 8000 | Stop the existing process or configure a different `PORT`. |
+| Dashboard login/setup issues | Check the active database/data directory and follow the account recovery process in the SIEM guide. |
+
+For the detailed component walkthrough, troubleshooting notes, configuration reference, security considerations, and manual validation checklist, read **[Complete Project Documentation](python-siem/docs/PROJECT_DOCUMENTATION.md)**.
+
+## Security and responsible use
+
+- Use HyShield only in an authorized research lab.
+- Keep SSH management access separate from honeypot access.
+- Do not expose the Docker daemon/socket or mount sensitive host files into the decoy container.
+- Do not assume Docker alone prevents container escape; use least privilege, resource limits, network restrictions, and a dedicated VM/host where possible.
+- Keep API keys, active passwords, real credentials, and sensitive logs out of version control.
+- Restrict access to Cowrie logs, SIEM database, exports, and settings.
+- Disable external geolocation if sharing public IP addresses with a provider is not permitted.
+- Preserve original logs separately when they may be forensic evidence.
+- Scores and ATT&CK mappings are heuristic; review the underlying session evidence before drawing conclusions.
+
+## Technology stack
+
+Python · Cowrie · Twisted · Docker · Ubuntu · TCP sockets · Groq API (optional) · FastAPI · Jinja · SQLite · pytest
+
+## License
+
+See [LICENSE](LICENSE) for the repository's license terms.
 
 ---
 
-## Cowrie Stops Immediately
-
-Run it manually to see the error:
-
-```bash
-cd ~/cowrie
-```
-
-```bash
-source cowrie-env/bin/activate
-```
-
-```bash
-export PYTHONPATH=~/cowrie/src
-```
-
-```bash
-twistd -n cowrie
-```
-
-Read the terminal output before making further changes.
-
----
-
-## Check the Modified Files
-
-Verify that the HyShield configuration was copied:
-
-```bash
-ls -l ~/cowrie/etc/cowrie.cfg
-```
-
-Check the modified LLM backend:
-
-```bash
-ls -l ~/cowrie/src/cowrie/llm/llm.py
-```
-
-Compare with backups if created:
-
-```bash
-diff ~/cowrie/etc/cowrie.cfg \
-~/cowrie/etc/cowrie.cfg.backup
-```
-
-```bash
-diff ~/cowrie/src/cowrie/llm/llm.py \
-~/cowrie/src/cowrie/llm/llm.py.backup
-```
-
----
-
-# 🔒 Security Considerations
-
-HyShield is designed to isolate attacker command execution from the host system.
-
-The intended security boundary is:
-
-```text
-Host System
-    │
-    ├── Cowrie Honeypot
-    │
-    ├── HyShield Bridge Server
-    │
-    └── Docker Isolation Layer
-            │
-            ▼
-      fake-ubuntu Container
-            │
-            ▼
-      Attacker Commands
-```
-
-However, Docker containers are not equivalent to complete virtual-machine isolation. Deploy honeypots carefully and avoid exposing sensitive host resources.
-
-Recommended practices:
-
-- Run the project on a dedicated machine or isolated environment
-- Do not mount sensitive host directories into the honeypot container
-- Do not expose Docker sockets to the container
-- Do not store API keys in the repository
-- Monitor Cowrie logs
-- Restrict unnecessary network access
-- Use the project only in authorized environments
-
----
-
-# 📚 Technologies Used
-
-- **Python**
-- **Cowrie**
-- **Docker**
-- **Twisted**
-- **Linux**
-- **TCP Socket Communication**
-- **Groq / AI API integration**
-- **SSH Honeypot Technology**
-
----
-
-# 🎯 Project Purpose
-
-HyShield explores a more dynamic approach to SSH honeypot interaction.
-
-Traditional honeypots often rely heavily on static or predefined command responses. HyShield introduces a processing pipeline where commands can be handled by an isolated execution environment and then processed before the response is returned.
-
-The goal is to combine:
-
-```text
-Honeypot Deception
-        +
-Container Isolation
-        +
-Dynamic Command Execution
-        +
-Output Sanitization
-        +
-AI-Assisted Refinement
-        =
-       HyShield
-```
-
----
-
-# ⚠️ Ethical Use
-
-This project is intended for:
-
-- Authorized cybersecurity research
-- Academic research
-- Honeypot experimentation
-- Security training
-- Controlled laboratory environments
-- Defensive security research
-
-Do not use this project to access systems without authorization.
-
----
-
-# 🙏 Acknowledgments
-
-HyShield is built around the Cowrie honeypot framework and extends it with custom components for bridge-based command processing, Docker execution, sanitization, session state handling, and AI-assisted response refinement.
-
-Special thanks to the open-source communities behind:
-
-- Cowrie
-- Docker
-- Python
-- Twisted
-- Groq
-
----
-
-# 📜 License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-<p align="center">
-  <b>🛡️ HyShield</b><br>
-  Hybrid AI-Driven SSH Honeypot Framework
-</p>
+**HyShield — deception, isolated command execution, telemetry collection, and SIEM-assisted investigation.**
