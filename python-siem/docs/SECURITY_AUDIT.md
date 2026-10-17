@@ -2,7 +2,7 @@
 
 **Review date:** 2026-10-17  
 **Scope:** `python-siem/` on branch `audit/fix-data-integrity-search-refresh`, including FastAPI routes/middleware, role checks, authentication/session handling, SQLite access, Cowrie ingestion, geolocation, report export, templates, configuration, tests, and CI configuration.  
-**Method:** Static code review of repository files. No production system was contacted, no penetration test was run, and the current full test suite was not executed as part of this review. Findings below are code-review findings or risks to verify, not proof of exploitability in every deployment.
+**Method:** Static code review plus remediation changes committed on this branch. No production system was contacted and no penetration test was run. The new code has not yet been validated by a completed CI run. Findings distinguish implemented mitigations from remaining work.
 
 ## Executive summary
 
@@ -10,9 +10,15 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **The app should not yet be considered production-hardened for network exposure.** Priorities are brute-force protection, deployment-safe cookie handling, CSRF defense-in-depth, protection of local secrets/data, ingestion/resource limits, and CI coverage for the Python SIEM itself.
 
+## Remediation status
+
+The following mitigations have been implemented on this branch and regression tests added where practical: per-process failed-login throttling (8 failures per client IP per 15-minute window), explicit secure-cookie configuration, stricter Origin parsing, default-off test generation when configured for a non-loopback host, best-effort restrictive permissions for local data/secrets, atomic settings writes, bounded ingestion batches and oversized-line rejection, periodic retention cleanup, a low-information health endpoint, and a Python-specific CI workflow.
+
+These are code changes, not a claim of passing tests. CI must complete successfully, and deployments must set `HYSHIELD_COOKIE_SECURE=true` when TLS terminates upstream. Remaining work includes synchronizer CSRF tokens, shared/distributed rate limiting for multi-worker deployments, bounded session-scoring work, and dependency lock/constraints management.
+
 ## Findings and priorities
 
-### HSA-01 — No login throttling or lockout policy
+### HSA-01 — Login throttling (mitigation implemented; CI validation pending)
 **Severity: High (exposure-dependent)**  
 **Evidence:** `app/main.py` `/login` calls `auth.authenticate()` on each POST; `app/auth.py` has no attempt throttling, delay, or temporary lockout. Failed attempts also create audit records.
 
@@ -20,7 +26,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Add rate limiting for both source address and normalized username, use a bounded rolling window with progressive delay, and cap/rotate authentication audit records. For multi-worker or multi-instance deployments, use a shared store or enforce rate limits at a reverse proxy. Avoid permanent account lockouts that enable easy denial of service.
 
-### HSA-02 — Secure-cookie behavior depends on the app's perceived URL scheme
+### HSA-02 — Secure-cookie behavior (configuration mitigation implemented)
 **Severity: High (when TLS terminates upstream)**  
 **Evidence:** `app/main.py` sets `secure=request.url.scheme == "https"` at login and initial setup.
 
@@ -28,7 +34,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Use an explicit deployment setting such as `HYSHIELD_COOKIE_SECURE=true` for HTTPS deployments, defaulting safely for production. Configure trusted proxy headers correctly and do not trust arbitrary forwarded headers from untrusted clients. Test the actual `Set-Cookie` header through the deployed proxy.
 
-### HSA-03 — CSRF protection relies on Origin being present and SameSite behavior
+### HSA-03 — CSRF protection still needs a synchronizer token
 **Severity: Medium**  
 **Evidence:** The middleware rejects state-changing requests only when an `Origin` header exists and its network location differs from `Host`. There is no per-session CSRF token.
 
@@ -36,7 +42,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Add CSRF tokens to authenticated state-changing forms and validate them server-side. Keep Origin/Referer validation as defense-in-depth, reject unexpected/malformed origins for browser form requests, and test login/setup/logout, user management, settings, purge, and alert closure.
 
-### HSA-04 — Sensitive settings and database permissions are not explicitly restricted
+### HSA-04 — Local secret/data permissions (best-effort mitigation implemented)
 **Severity: Medium (local multi-user/shared-host exposure)**  
 **Evidence:** `app/settings.py` writes `data/settings.json` with `Path.write_text()`; `app/db.py` creates SQLite files using default OS permissions. The settings file can contain a VirusTotal API key in plaintext. The authentication secret is created with mode 0600 on platforms that honor POSIX modes, but the containing data directory is not explicitly secured.
 
@@ -44,7 +50,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Ensure the data directory is private to the service account (typically 0700 on POSIX), create settings/database files with restrictive permissions (typically 0600), apply permissions to existing files where supported, and document platform-specific handling. Prefer environment/secret-manager injection for production API keys. Treat the SQLite database, Cowrie log, exported reports, and backups as sensitive.
 
-### HSA-05 — Ingestion has no explicit line-size or per-session processing bounds
+### HSA-05 — Ingestion resource limits (partially mitigated)
 **Severity: Medium (availability/integrity risk)**  
 **Evidence:** `app/ingest.py` reads the available appended log chunk into memory, parses each full JSON line, stores the full payload, and re-evaluates every event for each touched session. There is no explicit maximum event size, per-poll byte budget, or session event cap.
 
@@ -52,7 +58,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Process bounded chunks; reject or quarantine oversized lines with a capped diagnostic; cap payload sizes and field lengths; batch/limit scoring work; and add tests for huge lines, malformed JSON, repeated sessions, truncation, and rotation. Ensure file rotation and checkpoint behavior remains correct under chunking.
 
-### HSA-06 — Test event generator can write to the configured telemetry log
+### HSA-06 — Synthetic event generator (default-off for non-loopback hosts)
 **Severity: Medium (operational misuse / data integrity)**  
 **Evidence:** `app/test_generator.py` appends synthetic events to the same `COWRIE_LOG_PATH` consumed by the ingestor. The API caps each run at 100 sessions but has no cooldown or aggregate quota.
 
@@ -60,7 +66,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Disable the generator by default outside development, require an explicit enablement setting, and use a separate synthetic log/database in production-like deployments. If retained, add rate/aggregate limits and make the active log target and synthetic data status unmistakable.
 
-### HSA-07 — Retention configuration does not currently enforce deletion
+### HSA-07 — Retention cleanup (implemented; verify data policy)
 **Severity: Medium (data lifecycle / privacy)**  
 **Evidence:** Settings expose `logRetention`, but the reviewed ingestion/database paths do not apply a retention cleanup policy. Audit logs are also kept without a retention cap.
 
@@ -68,7 +74,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Implement documented, scheduled retention for raw events, sessions, alerts, and audit logs with safe referential cleanup and a dry-run/test path. If deletion is intentionally not implemented, rename the setting so it cannot imply that data is actually deleted. Define backup retention separately.
 
-### HSA-08 — Python SIEM is not covered by the existing CI workflow
+### HSA-08 — Python SIEM CI coverage (workflow added; run pending)
 **Severity: High (assurance gap; not an app exploit by itself)**  
 **Evidence:** `.github/workflows/siem-backend-tests.yml` targets the older `siem-dashboard/backend` and `siem-dashboard/frontend` paths, and its push branches do not include the current Python SIEM audit branch. Its dependency audit runs npm audit for the older Node projects, not the Python requirements.
 
@@ -84,7 +90,7 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 **Recommendation:** Use a tested constraints/lock file, run automated vulnerability audits, and update dependencies deliberately with tests. Keep the lock process compatible with the supported Python versions.
 
-### HSA-10 — Health endpoint exposes internal ingestion counters without authentication
+### HSA-10 — Health endpoint disclosure (mitigated)
 **Severity: Low**  
 **Evidence:** `/api/health` is exempt from authentication and returns `{"status":"ok","ingested": app.state.ingestor.stats}`.
 
@@ -125,4 +131,4 @@ The app has useful baseline controls: password hashing with scrypt, signed expir
 
 ## Audit limitations
 
-This is a static repository review, not a formal penetration test or a guarantee of security. No production deployment, external attack surface, proxy configuration, filesystem permissions, secret history, or live dependency advisory database was inspected. Runtime testing and a deployment-specific review remain necessary.
+This is a static repository review with remediation commits, not a formal penetration test or a guarantee of security. No production deployment, external attack surface, actual proxy configuration, secret history, or live dependency advisory database was inspected. The latest test suite and CI workflow have not yet been confirmed green. Runtime testing and a deployment-specific review remain necessary.
