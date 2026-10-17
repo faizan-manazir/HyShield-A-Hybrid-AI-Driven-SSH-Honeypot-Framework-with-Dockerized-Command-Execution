@@ -1,10 +1,9 @@
 name: Python SIEM Security Checks
 
 on:
+  # Run on every PR so cleanup/refactoring changes still validate the sole
+  # supported SIEM implementation, even when Python files are not modified.
   pull_request:
-    paths:
-      - "python-siem/**"
-      - ".github/workflows/python-siem-security.yml"
   push:
     branches:
       - main
