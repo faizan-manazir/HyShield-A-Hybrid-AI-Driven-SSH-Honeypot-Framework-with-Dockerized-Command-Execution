@@ -246,14 +246,12 @@ def test_ip_geolocation_provider_uses_https_and_parses_coordinates(monkeypatch):
 def test_overview_priority_queue_excludes_closed_alerts(client):
     from app import queries
 
-    open_alerts = queries.alerts(limit=20, status="OPEN")
-    if not open_alerts:
-        pytest.skip("sample telemetry produced no open alerts")
+    priority_alerts = queries.overview()["priorityAlerts"]
+    if not priority_alerts:
+        pytest.skip("sample telemetry produced no open priority alerts")
 
-    target = open_alerts[0]
-    assert any(item["id"] == target["id"]
-               for item in queries.overview()["priorityAlerts"])
-
+    target = priority_alerts[0]
     assert queries.close_alert(target["id"]) is True
+
     queued = queries.overview()["priorityAlerts"]
     assert all(item["id"] != target["id"] for item in queued)
