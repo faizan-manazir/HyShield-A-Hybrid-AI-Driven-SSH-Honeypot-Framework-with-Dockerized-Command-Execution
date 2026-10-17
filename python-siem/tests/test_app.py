@@ -300,3 +300,16 @@ def test_password_hashing_and_account_disable(client):
     assert auth.authenticate(username, "Test-Disable-Password-2026!") is not None
     assert auth.set_user_active(user["id"], False, app.state.test_admin) is True
     assert auth.authenticate(username, "Test-Disable-Password-2026!") is None
+
+
+
+def test_protected_routes_require_login_and_setup_closes_after_bootstrap(client):
+    saved_cookie = client.cookies.get(auth.COOKIE_NAME)
+    client.cookies.delete(auth.COOKIE_NAME)
+    page = client.get("/", follow_redirects=False)
+    assert page.status_code == 303 and page.headers["location"] == "/login"
+    api = client.get("/api/events")
+    assert api.status_code == 401
+    setup = client.get("/setup", follow_redirects=False)
+    assert setup.status_code == 303 and setup.headers["location"] == "/login"
+    client.cookies.set(auth.COOKIE_NAME, saved_cookie)
