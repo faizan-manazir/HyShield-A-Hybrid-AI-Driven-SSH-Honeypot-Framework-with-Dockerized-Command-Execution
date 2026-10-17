@@ -1,84 +1,100 @@
 {% extends "base.html" %}
 {% block title %}Settings - HyShield{% endblock %}
-{% macro toggle(name, on, label, hint) %}
-  <div class="field"><label class="check">
-    <input type="hidden" name="{{ name }}" value="0">
-    <input type="checkbox" name="{{ name }}" value="1" {{ 'checked' if on }}>
-    <span><b>{{ label }}</b>{% if hint %}<span class="hint" style="display:block;margin:2px 0 0">{{ hint }}</span>{% endif %}</span>
-  </label></div>
-{% endmacro %}
 {% block content %}
 <div class="page-head">
-  <div><h1>⚙ System Settings</h1><p class="sub">Configure telemetry sources, alert thresholds, response options, and threat-intelligence integrations.</p></div>
-</div>
-{% if saved %}<div class="ok-banner">✓ Settings saved successfully.</div>{% endif %}
-{% if error %}<div class="danger-zone" role="alert">{{ error }}</div>{% endif %}
-<div class="tabs">
-  <nav>
-    <a class="{{ 'on' if tab == 'global' }}" href="/settings?tab=global">🌐 General</a>
-    <a class="{{ 'on' if tab == 'response' }}" href="/settings?tab=response">🛡 Response</a>
-    <a class="{{ 'on' if tab == 'intel' }}" href="/settings?tab=intel">🗄 Intelligence</a>
-    <a class="{{ 'on' if tab == 'raw' }}" href="/settings?tab=raw">📝 Configuration</a>
-    <a class="{{ 'on' if tab == 'source' }}" href="/settings?tab=source">📂 Log Source</a>
-  </nav>
-  <div class="body">
-  {% if tab == 'global' %}
-    <form method="post" action="/settings" class="card pad">
-      <input type="hidden" name="tab" value="global">
-      <h3 style="margin-bottom:24px;letter-spacing:.08em;text-transform:uppercase">Alerting & retention</h3>
-      <div class="field"><label class="f">Alert threshold</label><p class="hint">Events below this threshold remain in the event log but do not create visible alerts. Default: 7.</p>
-        <input type="number" name="alertLevel" value="{{ s.alertLevel }}" min="0" max="15"></div>
-      <div class="field"><label class="f">Event retention (days)</label><p class="hint">Number of days to retain ingested event records.</p>
-        <input type="number" name="logRetention" value="{{ s.logRetention }}" min="1" max="3650"></div>
-      <button class="btn primary">Save settings</button>
-    </form>
-    <form method="post" action="/settings/purge" class="danger-zone" style="margin-top:24px">
-      <h3 style="color:#fb7185;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">⚠ Destructive actions</h3>
-      <p class="hint" style="margin-bottom:14px">Permanently deletes all events, sessions, and alerts from the local database. The source log file remains unchanged. This action cannot be undone.</p>
-      <input type="text" name="confirm" placeholder="Type PURGE to confirm deletion" autocomplete="off" style="max-width:260px;margin-right:10px">
-      <button class="btn danger">Delete stored data</button>
-    </form>
-  {% elif tab == 'response' %}
-    <form method="post" action="/settings" class="card pad">
-      <input type="hidden" name="tab" value="response">
-      <h3 style="margin-bottom:24px;letter-spacing:.08em;text-transform:uppercase">Response configuration</h3>
-      {{ toggle('arEnabled', s.arEnabled, 'Enable active response', 'Configure a response action for suspicious sources. Verify the execution workflow before enabling in a production environment.') }}
-      <div class="field"><label class="f">Response action</label>
-        <select name="arCommand">{% for c in ar_commands %}<option {{ 'selected' if c == s.arCommand }}>{{ c }}</option>{% endfor %}</select></div>
-      <div class="field"><label class="f">Block timeout (seconds)</label><p class="hint">Configured block duration in seconds. Default: 600 seconds (10 minutes).</p>
-        <input type="number" name="arTimeout" value="{{ s.arTimeout }}" min="1" max="86400"></div>
-      <p class="hint">Important: this saves configuration only. Automated blocking is not implemented in this application yet.</p>
-      <button class="btn primary">Save settings</button>
-    </form>
-  {% elif tab == 'intel' %}
-    <form method="post" action="/settings" class="card pad">
-      <input type="hidden" name="tab" value="intel">
-      <h3 style="margin-bottom:24px;letter-spacing:.08em;text-transform:uppercase">Threat-intelligence integrations</h3>
-      {{ toggle('vtEnabled', s.vtEnabled, 'VirusTotal threat feed', '') }}
-      <div class="field"><label class="f">VirusTotal API key</label>
-        <input type="password" name="vtKey" autocomplete="off" placeholder="{{ 'A key is saved - leave blank to keep it' if s.vtKeySet else 'Paste your API key' }}">
-        {% if s.vtKeySet %}<label class="check" style="margin-top:8px"><input type="checkbox" name="clearKey" value="1"> Remove the saved key</label>{% endif %}</div>
-      {{ toggle('otxEnabled', s.otxEnabled, 'AlienVault OTX', 'Open Threat Exchange indicator matching.') }}
-      <p class="hint">API keys are stored locally in data/settings.json and are not displayed after saving. Live indicator lookups are not implemented yet.</p>
-      <button class="btn primary">Save settings</button>
-    </form>
-  {% elif tab == 'source' %}
-    <form method="post" action="/settings" class="card pad">
-      <input type="hidden" name="tab" value="source">
-      <h3 style="margin-bottom:16px;letter-spacing:.08em;text-transform:uppercase">Cowrie JSON log source</h3>
-      <p class="hint" style="margin-bottom:18px">Set the absolute path to the Cowrie JSON-lines log on the SIEM server. The file must already exist and be readable by the HyShield service account. The ingestor switches immediately and begins reading the selected file; a restart is not required.</p>
-      <div class="field"><label class="f" for="cowrieLogPath">Cowrie log file path</label>
-        <input id="cowrieLogPath" type="text" name="cowrieLogPath" value="{{ s.cowrieLogPath }}" required maxlength="4096" autocomplete="off" spellcheck="false" style="width:100%">
-        <p class="hint">Example: /home/cowrie/cowrie/var/log/cowrie/cowrie.json</p>
-      </div>
-      <p class="hint">Changing this setting does not move or modify the source log. Ensure the SIEM process has read permission for the file and execute permission on every parent directory. Stop the test event generator before switching sources.</p>
-      <button class="btn primary">Save log source</button>
-    </form>
-  {% else %}
-    <div class="card pad"><h3 style="margin-bottom:16px;letter-spacing:.08em;text-transform:uppercase">Generated configuration preview</h3>
-      <pre class="rawconf">{{ raw }}</pre></div>
-  {% endif %}
+  <div>
+    <div class="eyebrow">ADMINISTRATION / PLATFORM PREFERENCES</div>
+    <h1>Settings</h1>
+    <p class="sub">Operational controls for telemetry ingestion, alert quality, data lifecycle, and your analyst workspace.</p>
   </div>
+  <span class="live"><i></i> CONTROL PLANE</span>
 </div>
+{% if saved %}<div class="ok-banner" role="status">✓ Changes saved successfully.</div>{% endif %}
+{% if error %}<div class="danger-zone" role="alert">{{ error }}</div>{% endif %}
 
+<nav class="settings-jump" aria-label="Settings sections">
+  <a href="#telemetry">01 <span>Telemetry source</span></a>
+  <a href="#alerting">02 <span>Alerting & retention</span></a>
+  <a href="#appearance">03 <span>Appearance</span></a>
+</nav>
+
+<section id="telemetry" class="settings-section">
+  <div class="settings-section-head">
+    <div><span class="settings-index">01 / DATA INGESTION</span><h2>Telemetry source</h2>
+      <p>Choose the Cowrie JSON-lines file HyShield tails. Changes take effect immediately; no restart is required.</p></div>
+    <span class="settings-state"><i></i> Source configuration</span>
+  </div>
+  <form method="post" action="/settings" class="card pad settings-card">
+    <input type="hidden" name="tab" value="source">
+    <div class="settings-field-heading"><span class="settings-icon">⌁</span><div><b>Cowrie JSON log</b><p class="hint">The service account needs read access to the file and execute access to every parent directory.</p></div></div>
+    <div class="field">
+      <label class="f" for="cowrieLogPath">Absolute file path</label>
+      <input id="cowrieLogPath" type="text" name="cowrieLogPath" value="{{ s.cowrieLogPath }}" required maxlength="4096" autocomplete="off" spellcheck="false" style="width:100%">
+      <p class="hint">Example: <code>/home/cowrie/cowrie/var/log/cowrie/cowrie.json</code>. HyShield validates that the file exists, is readable, and begins with a Cowrie event.</p>
+    </div>
+    <div class="settings-note"><b>What happens when you save</b><span>HyShield validates the file, switches the ingestor, and starts tracking the new source. Existing stored events remain in the SIEM database; the source file is never modified.</span></div>
+    <div class="settings-actions"><span class="hint">Restricted to Super Admins · Changes are audit-logged</span><button class="btn primary" type="submit">Validate & save source</button></div>
+  </form>
+</section>
+
+<section id="alerting" class="settings-section">
+  <div class="settings-section-head">
+    <div><span class="settings-index">02 / DETECTION & STORAGE</span><h2>Alerting & data retention</h2>
+      <p>Set the minimum severity for alert creation and define how long ingested event records are retained.</p></div>
+  </div>
+  <form method="post" action="/settings" class="card pad settings-card">
+    <input type="hidden" name="tab" value="global">
+    <div class="settings-two-col">
+      <div class="field">
+        <label class="f" for="alertLevel">Alert threshold</label>
+        <div class="settings-value"><input id="alertLevel" type="number" name="alertLevel" value="{{ s.alertLevel }}" min="0" max="15" required><span class="settings-unit">0–15</span></div>
+        <p class="hint">Lower the threshold to surface more activity; raise it to reduce noise. Events remain searchable even when they do not trigger an alert.</p>
+        <div class="threshold-scale"><span>More alerts</span><span>Fewer alerts</span></div>
+      </div>
+      <div class="field">
+        <label class="f" for="logRetention">Event retention</label>
+        <div class="settings-value"><input id="logRetention" type="number" name="logRetention" value="{{ s.logRetention }}" min="1" max="3650" required><span class="settings-unit">days</span></div>
+        <p class="hint">Stored event records older than this window are eligible for cleanup. Keep retention aligned with your investigation and compliance needs.</p>
+        <div class="settings-note compact"><b>Range: 1–3,650 days</b><span>Retention applies to the SIEM database, not the original Cowrie log file.</span></div>
+      </div>
+    </div>
+    <div class="settings-actions"><span class="hint">Saved on the SIEM server · Applies to future processing/cleanup</span><button class="btn primary" type="submit">Save operational settings</button></div>
+  </form>
+</section>
+
+<section id="appearance" class="settings-section">
+  <div class="settings-section-head">
+    <div><span class="settings-index">03 / ANALYST WORKSPACE</span><h2>Appearance</h2>
+      <p>Personalize the console for your environment. These preferences are saved in this browser and do not change other analysts’ views.</p></div>
+  </div>
+  <div class="card pad settings-card appearance-card">
+    <div class="appearance-row">
+      <div><b>Color theme</b><p class="hint">Choose the workspace contrast that suits your shift and lighting.</p></div>
+      <div class="theme-options" role="group" aria-label="Color theme">
+        <button type="button" class="theme-choice" data-theme-choice="dark" aria-pressed="false"><span class="theme-preview theme-preview-dark"><i></i><i></i><i></i></span><b>Midnight</b><small>Low-light SOC</small></button>
+        <button type="button" class="theme-choice" data-theme-choice="light" aria-pressed="false"><span class="theme-preview theme-preview-light"><i></i><i></i><i></i></span><b>Daylight</b><small>Bright workspace</small></button>
+        <button type="button" class="theme-choice" data-theme-choice="system" aria-pressed="false"><span class="theme-preview theme-preview-system"><i></i><i></i><i></i></span><b>System</b><small>Follow device</small></button>
+      </div>
+    </div>
+    <div class="appearance-row">
+      <div><b>Accent color</b><p class="hint">Choose the highlight color used for active navigation, links, and key controls.</p></div>
+      <div class="accent-options" role="group" aria-label="Accent color">
+        <button type="button" class="accent-choice" data-accent-choice="cyan" aria-label="Cyan accent" title="Cyan"><i></i><span>Cyan</span></button>
+        <button type="button" class="accent-choice" data-accent-choice="blue" aria-label="Blue accent" title="Blue"><i></i><span>Blue</span></button>
+        <button type="button" class="accent-choice" data-accent-choice="violet" aria-label="Violet accent" title="Violet"><i></i><span>Violet</span></button>
+        <button type="button" class="accent-choice" data-accent-choice="green" aria-label="Green accent" title="Green"><i></i><span>Green</span></button>
+      </div>
+    </div>
+    <div class="appearance-row">
+      <div><b>Display density</b><p class="hint">Control spacing in tables and panels for dense investigations or easier reading.</p></div>
+      <div class="density-options" role="group" aria-label="Display density">
+        <button type="button" data-density-choice="comfortable" aria-pressed="false">Comfortable</button>
+        <button type="button" data-density-choice="compact" aria-pressed="false">Compact</button>
+      </div>
+    </div>
+    <div class="settings-actions"><span id="appearance-status" class="hint" role="status">Preferences are saved automatically in this browser.</span><button type="button" class="btn" id="reset-appearance">Reset appearance</button></div>
+  </div>
+</section>
+
+<div class="settings-footnote"><span>🔒</span><p><b>Security boundary</b><br>Operational settings are server-side and restricted by role. Appearance preferences stay in your browser. HyShield does not expose unused response actions or unimplemented threat-intelligence integrations as configurable controls.</p></div>
 {% endblock %}
