@@ -196,7 +196,7 @@ async def create_user_page(request: Request):
 @app.post("/users/{user_id}/disable")
 def disable_user(user_id: int, request: Request):
     try:
-        changed = auth.set_user_active(user_id, False, request.state.user["id"])
+        changed = auth.set_user_active(user_id, False, request.state.user)
     except ValueError as exc:
         from urllib.parse import quote
         return RedirectResponse("/users?error=" + quote(str(exc)), status_code=303)
@@ -207,6 +207,16 @@ def disable_user(user_id: int, request: Request):
 def enable_user(user_id: int, request: Request):
     changed = auth.set_user_active(user_id, True, request.state.user["id"])
     return RedirectResponse("/users?saved=1" if changed else "/users?error=User%20not%20found.", status_code=303)
+
+
+@app.get("/audit-logs")
+def audit_logs_page(request: Request):
+    return render(request, "audit_logs.html", "audit-logs", logs=auth.list_audit_logs(200))
+
+
+@app.get("/api/audit-logs")
+def api_audit_logs(limit: int = 200):
+    return auth.list_audit_logs(max(1, min(limit, 1000)))
 
 
 @app.get("/api/users")
