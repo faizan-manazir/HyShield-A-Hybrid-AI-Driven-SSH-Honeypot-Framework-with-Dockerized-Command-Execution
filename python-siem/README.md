@@ -1,5 +1,7 @@
 # HyShield SIEM Dashboard (Python version)
 
+> **Full documentation:** [Project architecture, configuration, data flow, detection logic, routes, deployment, testing, and troubleshooting](docs/PROJECT_DOCUMENTATION.md).
+
 The same dashboard as the Node.js + Next.js/TypeScript version, rebuilt as **one Python app**.
 No Node, no npm, no TypeScript, and no frontend build step. A small amount of plain JavaScript powers chart interactions and quiet live updates.
 
@@ -136,3 +138,7 @@ Validation after the visual refresh: `python -m pytest -q` (39 tests passed).
 The map uses a self-contained SVG world outline (no third-party tile service required). Use the search field and risk filter to narrow sources, click a marker or table row to inspect its IP, estimated coordinates, score, events, sessions and network metadata, use the zoom/pan controls, copy coordinates, open the estimated point in OpenStreetMap, or follow a session link. The map refreshes from JSON in the background without reloading the page and preserves the current zoom and selection where possible.
 
 Public IP coordinates are resolved over HTTPS through `ipwho.is` and cached locally. Private/reserved IPs cannot be geolocated on the public internet; with `DEMO_MODE=true`, their displayed locations are explicitly marked as illustrative demo data. IP geolocation cannot reliably identify a person's precise physical location.
+
+## Investigation prioritization
+
+The Overview's **Investigation Priorities** panel sorts open alerts by severity (critical to low), then by newest timestamp within each severity. The separate **Recent Alerts** panel remains chronological.
