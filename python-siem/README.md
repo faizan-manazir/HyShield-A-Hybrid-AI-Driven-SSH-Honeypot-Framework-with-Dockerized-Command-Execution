@@ -83,12 +83,12 @@ python tools/simulate.py --count 30          # terminal 2 (adds fake attack sess
 | `/explorer` | search every event (IP, session, command, username, MITRE id) |
 | `/actors` | one card per attacker IP |
 | `/sessions`, `/sessions/<id>` | session list, and the full "attack story" + commands + score explanation |
-| `/settings` | system settings |
+| `/settings` | system settings |\n| `/reports/export.html` | downloads a standalone HTML snapshot of metrics, alerts, actors, sessions, and recent events |
 | `/generator` | local synthetic event generator for test sessions and dashboard validation |
 
 The JSON API is still there (`/api/...`), and FastAPI documents it at **/docs**.
 
-## How the code is organised
+## Export an HTML security report\n\nFrom the Security Overview, select **Export HTML Report**. The authenticated `/reports/export.html` endpoint downloads a standalone HTML file containing current summary metrics, up to 100 alerts, 20 source actors, 50 sessions, and 100 recent events. The report is generated on demand, uses HTML escaping for logged values, and is marked as an attachment with caching disabled. Treat exported reports as sensitive because they may contain attacker IPs, usernames, and command telemetry.\n\n## How the code is organised
 
 ```
 run.py                 start the server
