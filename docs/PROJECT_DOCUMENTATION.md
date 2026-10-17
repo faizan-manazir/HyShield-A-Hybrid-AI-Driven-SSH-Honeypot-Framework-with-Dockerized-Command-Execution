@@ -23,7 +23,6 @@ HyShield is a research and educational SSH honeypot framework built around Cowri
 - Return plausible terminal output to sustain honeypot interaction.
 - Record activity for later analysis.
 - Provide a dashboard for alert triage, event search, actor review, session inspection, and approximate geographic visualization.
-- Support local demonstrations with synthetic Cowrie-shaped events.
 
 ### Limitations
 - IP geolocation does not establish an attacker's identity or precise physical location.
@@ -178,10 +177,8 @@ Passwords are stored as scrypt hashes. Signed HttpOnly session cookies expire af
 | `python-siem/app/geo.py` | IP classification, asynchronous geolocation, caching. |
 | `python-siem/app/charts.py` | SVG charts and threat map. |
 | `python-siem/app/settings.py` | Persistent settings and safe public settings view. |
-| `python-siem/app/test_generator.py` | Synthetic Cowrie event generator. |
 | `python-siem/app/templates/` | Jinja templates. |
 | `python-siem/app/static/` | JavaScript, CSS, and map assets. |
-| `python-siem/tools/` | CLI simulation utilities. |
 
 See [Python SIEM detailed documentation](../python-siem/docs/PROJECT_DOCUMENTATION.md) for subsystem-level detail.
 
@@ -290,7 +287,7 @@ Default UI: `http://127.0.0.1:8000`; API explorer: `http://127.0.0.1:8000/docs`.
 
 For a lab/Codespaces preview:
 ```bash
-HOST=0.0.0.0 PORT=8000 DEMO_MODE=true python run.py
+HOST=0.0.0.0 PORT=8000  python run.py
 ```
 Binding to all interfaces can expose the service through the environment. Do so only when necessary and with appropriate access controls.
 
@@ -318,21 +315,11 @@ Binding to all interfaces can expose the service through the environment. Do so 
 | `HOST` | `127.0.0.1`. |
 | `PORT` | `8000`. |
 | `POLL_SECONDS` | `2` seconds between ingestion polls. |
-| `DEMO_MODE` | Off by default; synthetic locations for private/loopback IPs in demo maps. |
 | `HYSHIELD_GEO` | Enabled unless set to `off`; public lookups use ipwho.is over HTTPS. |
 | `HONEYPOT_NAME` | Map sensor label. |
 | `HONEYPOT_LAT`, `HONEYPOT_LNG` | Map sensor coordinates (default Islamabad coordinates). |
 | `HONEYPOT_CITY`, `HONEYPOT_COUNTRY` | Map sensor labels (default Islamabad/Pakistan). |
 | `ANALYST_LAN_IP` | Optional lab/analyst IP displayed specially on the map. |
-
-## 13. Synthetic data and demo mode
-
-The local event generator writes Cowrie-shaped JSON lines using documentation TEST-NET addresses; it does not send network traffic. Generated events pass through normal ingestion and correlation, changing metrics, sessions, alerts, and maps.
-
-- Use a separate test log/database for demonstrations.
-- Do not mix synthetic events with real investigation evidence.
-- Private IP demo locations are synthetic and must not be presented as attribution.
-- Clearly label synthetic screenshots and presentation data.
 
 ## 14. Security and privacy checklist
 
