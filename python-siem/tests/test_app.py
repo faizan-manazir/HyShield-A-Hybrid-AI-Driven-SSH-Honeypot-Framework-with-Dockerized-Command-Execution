@@ -49,10 +49,11 @@ def test_dashboard_charts_are_interactive(client):
     area = charts.area_chart([("12:00", 2), ("12:01", 5)])
     donut = charts.donut([("AUTH", 3, "#8b5cf6"), ("CMD", 2, "#f97316")])
     assert 'class="dot chart-point"' in area
-    assert 'data-chart-tip="12:00 · 2 events"' in area
+    assert 'data-chart-tip' not in area
+    assert '<title>' not in area
     assert 'class="donut-slice"' in donut
     assert 'data-href="/explorer?category=AUTH"' in donut
-    assert "chart-tooltip" in client.get("/static/app.js?v=4").text
+    assert "chart-tooltip" not in client.get("/static/app.js?v=4").text
     assert "@keyframes app-start" in client.get("/static/style.css?v=4").text
 
 def test_sample_log_was_ingested(client):
