@@ -9,7 +9,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -317,7 +317,7 @@ def overview_page(request: Request):
 @app.get("/reports/export.html")
 def export_html_report(request: Request):
     """Download a standalone HTML snapshot of current SIEM findings."""
-    generated = datetime.utcnow()
+    generated = datetime.now(timezone.utc)
     data = queries.overview()
     report_context = {
         "generated_at": generated.strftime("%Y-%m-%d %H:%M:%S UTC"),
