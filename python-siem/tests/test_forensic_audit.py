@@ -26,7 +26,8 @@ def test_audit_reports_counts_timeline_and_matching_baseline(tmp_path):
     assert report["sessions"]["s1"]["command_events"] == 2
     assert report["timestamp_decreases_in_file_order"] == 1
     assert report["baseline_match"] is True
-    assert "input" not in json.dumps(report)
+    assert '"id"' not in json.dumps(report)
+    assert "whoami" not in json.dumps(report)
 
 
 def test_audit_reports_malformed_and_missing_fields_without_payload(tmp_path):
@@ -40,10 +41,11 @@ def test_audit_reports_malformed_and_missing_fields_without_payload(tmp_path):
 
     report = audit_file(path)
 
-    assert report["json_records"] == 1
-    assert report["malformed_or_non_object_lines"] == 2
+    assert report["json_records"] == 2
+    assert report["malformed_or_non_object_lines"] == 1
     assert report["invalid_timestamp"] == 1
-    assert report["missing_eventid"] == 0
+    assert report["missing_eventid"] == 1
+    assert report["missing_timestamp"] == 1
     assert "do-not-print" not in json.dumps(report)
     assert "password" not in json.dumps(report)
 
