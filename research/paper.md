@@ -89,7 +89,7 @@ Four copy-level checks were reported:
 
 1. **Append detection:** a marker was appended to a disposable copy and its digest recalculated.
 2. **Event omission:** one command-input record from anonymized Session E was removed from a disposable copy.
-3. **Timestamp anomaly:** the timestamp of the “cd /bin” command in a disposable copy was changed to 2026-05-18T22:00:00.000000Z, creating one backward chronological step in file order.
+3. **Timestamp anomaly:** the timestamp of one command-input event in a disposable copy was changed to 2026-05-18T22:00:00.000000Z, creating one backward chronological step in file order.
 4. **Baseline preservation:** hashes of the preserved source and unmodified working copy were compared; controlled copies were not written back to the preserved source.
 
 These are offline copy-level simulations. They are not an end-to-end test of database tampering, log rotation under concurrent writes, clock synchronization, or the deployed Docker/Cowrie environment.
