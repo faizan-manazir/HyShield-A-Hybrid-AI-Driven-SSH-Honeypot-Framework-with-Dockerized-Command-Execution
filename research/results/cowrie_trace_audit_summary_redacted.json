@@ -1,0 +1,36 @@
+{
+  "baseline_match": true,
+  "event_counts": {
+    "cowrie.client.kex": 6,
+    "cowrie.client.size": 4,
+    "cowrie.client.var": 8,
+    "cowrie.client.version": 6,
+    "cowrie.command.input": 11,
+    "cowrie.log.closed": 3,
+    "cowrie.login.failed": 1,
+    "cowrie.login.success": 4,
+    "cowrie.session.closed": 6,
+    "cowrie.session.connect": 6
+  },
+  "file_size_bytes": 29336,
+  "first_valid_timestamp_in_file_order": "2026-05-18T21:58:44.672161Z",
+  "interpretation_warning": "Hash comparison is meaningful only against a trusted, independently protected baseline. This report cannot establish event truth, completeness, origin, custody, or admissibility.",
+  "invalid_timestamp": 0,
+  "json_records": 55,
+  "last_valid_timestamp_in_file_order": "2026-05-18T22:13:26.630935Z",
+  "malformed_or_non_object_lines": 0,
+  "missing_eventid": 0,
+  "missing_timestamp": 0,
+  "privacy_note": "Session IDs, source IPs, credentials, and command text are omitted from this publication-oriented summary.",
+  "session_count": 6,
+  "sessions_summary": {
+    "session_01": {"command_events": 0, "records": 4},
+    "session_02": {"command_events": 0, "records": 4},
+    "session_03": {"command_events": 1, "records": 10},
+    "session_04": {"command_events": 2, "records": 11},
+    "session_05": {"command_events": 2, "records": 12},
+    "session_06": {"command_events": 6, "records": 14}
+  },
+  "sha256": "43F659EB94216AC20BFB8A17EB7043341295AC8ADD435DCDB25E1C8A4DF13DA4",
+  "timestamp_decreases_in_file_order": 0
+}
