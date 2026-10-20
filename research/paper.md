@@ -198,6 +198,11 @@ The work uses an existing honeypot trace and controlled offline copies. No publi
 7. Boiko, V., & Niiakyi, O. (2026). “A 4-month dataset of interactive SSH honeypot logs and command payloads.” *Data in Brief*, 66, 112860. https://doi.org/10.1016/j.dib.2026.112860
 8. HyShield Project. “HyShield: Hybrid AI-Driven SSH Honeypot with Dockerized Command Execution and Python SIEM Dashboard.” GitHub repository documentation and source code, accessed 21 October 2026. https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution
 
+9. Pakistan. *Qanun-e-Shahadat Order, 1984*, Article 164. The current official text and relevant judicial interpretation must be checked before submission.
+10. Pakistan. *Electronic Transactions Ordinance, 2002*. Official Gazette/current consolidated text should be checked before relying on a particular provision.
+11. United States. *Federal Rules of Evidence*, Rules 901 and 902(13)–(14). Official rules: https://www.uscourts.gov/rules-policies/current-rules-practice-procedure/federal-rules-evidence
+12. United Kingdom. *Criminal Justice Act 2003*, Part 11, Chapter 2, including section 114. Official legislation: https://www.legislation.gov.uk/ukpga/2003/44/part/11/chapter/2
+
 ## Author submission checklist
 
 - Confirm author order, affiliations, correspondence details, and contributions.
