@@ -12,6 +12,13 @@
 - CI run: https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39479778416
 - CI outcome: test suite, dependency audit, and static security scan all completed successfully.
 
+## Reproducible audit utility
+- Script: `python-siem/scripts/forensic_audit.py`
+- Tests: `python-siem/tests/test_forensic_audit.py`
+- The script is read-only and reports counts, session summaries, timestamp decreases in file order, malformed/missing fields, SHA-256, and optional baseline comparison. It deliberately excludes raw command contents, credentials, and IP addresses from its output.
+- Usage from `python-siem/`: `python scripts/forensic_audit.py /path/to/cowrie.json --baseline-sha256 <trusted-64-hex-digest> --output audit-report.json`
+- The baseline must be stored independently and protected; a baseline generated from a possibly altered file does not establish authenticity.
+
 ## Examined trace
 - File: cowrie.json (local user-provided trace; not included in repository)
 - Records: 55 parseable JSON lines
