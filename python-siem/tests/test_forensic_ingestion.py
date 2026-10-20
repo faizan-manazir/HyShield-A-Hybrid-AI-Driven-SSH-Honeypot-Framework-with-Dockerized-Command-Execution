@@ -169,3 +169,51 @@ def test_valid_json_non_object_is_recorded_as_malformed(isolated_ingestor):
         ).fetchone()
     assert malformed is not None
     assert json.loads(malformed["payload"])["raw_line"] == "[]"
+
+
+
+def test_appended_cowrie_event_is_ingested_on_next_poll(isolated_ingestor):
+    ingestor, path = isolated_ingestor
+    first = _event("cowrie.session.connect", "session-live", "2026-10-20T10:07:00Z")
+    second = _event("cowrie.command.input", "session-live", "2026-10-20T10:07:05Z", input="id")
+    path.write_text(json.dumps(first) + "\n", encoding="utf-8")
+
+    assert ingestor.poll() == 1
+    assert _raw_event_count() == 1
+
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(second) + "\n")
+
+    # A later poll ingests only the appended record, not the whole file again.
+    assert ingestor.poll() == 1
+    assert _raw_event_count() == 2
+    assert ingestor.poll() == 0
+    assert _raw_event_count() == 2
+
+
+def test_changing_log_path_tails_new_file_without_reusing_old_offset(isolated_ingestor, tmp_path):
+    ingestor, first_path = isolated_ingestor
+    first = _event("cowrie.session.connect", "session-from-first-file", "2026-10-20T10:08:00Z")
+    first_path.write_text(json.dumps(first) + "\n", encoding="utf-8")
+    assert ingestor.poll() == 1
+    first_offset = _checkpoint_offset(ingestor)
+    assert first_offset == first_path.stat().st_size
+
+    second_path = tmp_path / "selected-cowrie.json"
+    second = _event("cowrie.session.connect", "session-from-selected-file", "2026-10-20T10:09:00Z")
+    second_path.write_text(json.dumps(second) + "\n", encoding="utf-8")
+    assert second_path.stat().st_size <= first_offset
+
+    # Mirrors the dashboard's saved path change, then the background poll.
+    ingestor.set_log_path(second_path)
+    assert ingestor.poll() == 1
+    assert ingestor.log_path == str(second_path)
+    assert _raw_event_count() == 2
+    assert _checkpoint_offset(ingestor) == second_path.stat().st_size
+
+    with db.connect() as conn:
+        sessions = {
+            row["session_id"]
+            for row in conn.execute("SELECT session_id FROM sessions").fetchall()
+        }
+    assert sessions == {"session-from-first-file", "session-from-selected-file"}
