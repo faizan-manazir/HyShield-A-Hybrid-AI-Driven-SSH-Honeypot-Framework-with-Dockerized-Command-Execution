@@ -9,8 +9,8 @@
 - Repository: faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution
 - Branch: audit/forensic-ingestion-tests
 - Corrected fixture commit: b0e32d3b7e2a0d2ba23ff6bac08f05ee51ab0bdf
-- Latest CI run after the manuscript and source-to-database reconciliation tests: https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39482240493
-- CI outcome: test suite, dependency audit, and static security scan all completed successfully.
+- Latest CI run for the current manuscript commit: https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39482655272
+- CI outcome: test suite, dependency audit, and static security scan all completed successfully for the current manuscript commit.
 
 ## Reproducible audit utility
 - Script: `python-siem/scripts/forensic_audit.py`
@@ -47,8 +47,8 @@
 These outcomes were recorded from the user's offline console output; they were not automatically rerun by the GitHub workflow:
 - Preserved source and unmodified working copy hashes matched.
 - Append marker: hash changed from 43F659...4DF13DA4 to BFFDF7EE0654C994E2022DB3FE9D46A1CEDBD2241182D505A5EDA95226411352.
-- Delete one command-input event (session 30d26570617d, original line 38): record count 55 to 54; command-input count 11 to 10; altered-copy hash 09E13730D0320483905446133D7A96324CF95AF69C44FA9D2961F3C752EDB3AE.
-- Change timestamp of cd /bin event to 2026-05-18T22:00:00.000000Z: observed timestamp decreases 0 to 1 in modified copy.
+- Delete one command-input event (anonymized Session E): record count 55 to 54; command-input count 11 to 10; altered-copy hash 09E13730D0320483905446133D7A96324CF95AF69C44FA9D2961F3C752EDB3AE.
+- Change timestamp of one command-input event to 2026-05-18T22:00:00.000000Z: observed timestamp decreases 0 to 1 in modified copy.
 - Original file remained unchanged in the reported tests.
 
 ## Scope and non-claims
