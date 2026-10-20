@@ -193,7 +193,12 @@ def test_appended_cowrie_event_is_ingested_on_next_poll(isolated_ingestor):
 
 def test_changing_log_path_tails_new_file_without_reusing_old_offset(isolated_ingestor, tmp_path):
     ingestor, first_path = isolated_ingestor
-    first = _event("cowrie.session.connect", "session-from-first-file", "2026-10-20T10:08:00Z")
+    first = _event(
+        "cowrie.session.connect",
+        "session-from-first-file",
+        "2026-10-20T10:08:00Z",
+        extra_description="a deliberately longer source record so its checkpoint exceeds the second file size",
+    )
     first_path.write_text(json.dumps(first) + "\n", encoding="utf-8")
     assert ingestor.poll() == 1
     first_offset = _checkpoint_offset(ingestor)
