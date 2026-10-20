@@ -1,6 +1,6 @@
 # From SSH Honeypot Telemetry to Digital Forensic Evidence: Session Reconstruction, Timeline Consistency, and Integrity Checks in HyShield
 
-**Manuscript status:** completed evidence-grounded manuscript draft; author and venue details remain to be confirmed before submission  
+**Manuscript status:** finalized research draft; author metadata, legal review, and venue-specific formatting remain before submission  
 **Date:** 21 October 2026
 
 ## Abstract
@@ -96,7 +96,7 @@ These are offline copy-level simulations. They are not an end-to-end test of dat
 
 ### 4.5 Repository regression tests
 
-The test module python-siem/tests/test_forensic_ingestion.py exercises repeated polling, incomplete final lines, malformed records followed by valid records, truncation, oversized lines, valid JSON values that are not objects, appending an event, and switching source paths. The additional python-siem/tests/test_forensic_pipeline_reconciliation.py exercises the actual Ingestor-to-SQLite path with synthetic events, including source/database row reconciliation, missing and invalid timestamp retention, repeated identical JSON content at different byte offsets, and an intentionally omitted upstream event. The tests demonstrate a key limit: without an independent upstream manifest, an event absent before ingestion cannot be inferred from the rows that were ingested. Tests use an isolated temporary SQLite database. A separate read-only utility, python-siem/scripts/forensic_audit.py, reports a file SHA-256, optional baseline match, event counts, session counts, malformed-line counts, missing/invalid timestamp and event-ID counts, and timestamp decreases in file order. It deliberately omits command contents, passwords, and IP addresses from its report. The utility's automated tests cover baseline matches and mismatches, chronology anomalies, malformed records, missing fields, and payload redaction. GitHub Actions run the test suite, dependency audit, and static security scan. The completed run for the manuscript and reconciliation-test commit passed all three stages (run 39482240493). The CI tests use synthetic records and do not claim to validate the live Docker/Cowrie deployment end to end. The successful run is available at [GitHub Actions run 39479778416](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39479778416). The CI outcome demonstrates that the configured checks passed on that branch and commit; it does not prove all possible behaviors have been tested.
+The test module python-siem/tests/test_forensic_ingestion.py exercises repeated polling, incomplete final lines, malformed records followed by valid records, truncation, oversized lines, valid JSON values that are not objects, appending an event, and switching source paths. The additional python-siem/tests/test_forensic_pipeline_reconciliation.py exercises the actual Ingestor-to-SQLite path with synthetic events, including source/database row reconciliation, missing and invalid timestamp retention, repeated identical JSON content at different byte offsets, and an intentionally omitted upstream event. The tests demonstrate a key limit: without an independent upstream manifest, an event absent before ingestion cannot be inferred from the rows that were ingested. Tests use an isolated temporary SQLite database. A separate read-only utility, python-siem/scripts/forensic_audit.py, reports a file SHA-256, optional baseline match, event counts, session counts, malformed-line counts, missing/invalid timestamp and event-ID counts, and timestamp decreases in file order. It deliberately omits command contents, passwords, and IP addresses from its report. The utility's automated tests cover baseline matches and mismatches, chronology anomalies, malformed records, missing fields, and payload redaction. GitHub Actions run the test suite, dependency audit, and static security scan. The completed run for the manuscript and reconciliation-test commit passed all three stages (run 39482240493). The CI tests use synthetic records and do not claim to validate the live Docker/Cowrie deployment end to end. The successful run for the current manuscript and reconciliation-test commit is available at [GitHub Actions run 39482240493](https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39482240493). The CI outcome demonstrates that the configured checks passed on that branch and commit; it does not prove all possible behaviors have been tested.
 
 ### 4.6 Measures
 
@@ -124,12 +124,12 @@ The loopback-only source context means the trace is best interpreted as a local 
 
 | Session ID | Records | Command-input events | Span (s) |
 |---|---:|---:|---:|
-| 92b7c74e7e2f | 4 | 0 | 0.045 |
-| a3f6b46954f1 | 4 | 0 | 2.694 |
-| 634411d4dd09 | 12 | 2 | 36.607 |
-| b37c7198eb5f | 10 | 1 | 12.272 |
-| 30d26570617d | 14 | 6 | 184.046 |
-| 6425ff707de2 | 11 | 2 | 13.075 |
+| Session A | 4 | 0 | 0.045 |
+| Session B | 4 | 0 | 2.694 |
+| Session C | 12 | 2 | 36.607 |
+| Session D | 10 | 1 | 12.272 |
+| Session E | 14 | 6 | 184.046 |
+| Session F | 11 | 2 | 13.075 |
 
 The original file order had zero observed timestamp decreases. This is a consistency observation only; it does not establish that the source clock was correct. Session spans are calculated from recorded timestamps and have not been independently validated against an external time source.
 
@@ -143,7 +143,7 @@ The timestamp simulation changed the number of observed timestamp decreases from
 
 ### 5.3 Automated regression checks
 
-The GitHub Actions run completed successfully for all configured stages: Python test suite, dependency audit, and static security scan. The forensic-oriented test module covers eight ingestion edge cases using synthetic records. Its scope is limited to the ingestion component and does not validate the full deployed SIEM pipeline. These tests provide regression protection for the specified cases, not proof of completeness or security.
+The GitHub Actions run completed successfully for all configured stages: Python test suite, dependency audit, and static security scan. The forensic-oriented tests cover eight ingestion edge cases plus four source-to-SQLite reconciliation/fault-boundary cases using synthetic records. Their scope is limited to the ingestion component and does not validate the full deployed SIEM pipeline. These tests provide regression protection for the specified cases, not proof of completeness or security.
 
 ## 6. Discussion
 
@@ -157,7 +157,7 @@ Session IDs and timestamps support grouping and ordering. They do not independen
 
 ### 6.3 Database ingestion creates a second evidential layer
 
-The SIEM stores parsed events and derived session information. A reliable evaluation should compare the preserved source file with database rows and document the mapping between each source record and each stored record. Existing ingestion tests verify important behaviors, including that repeated polling does not duplicate rows and that an incomplete trailing record is not checkpointed prematurely. Further testing is required for database alteration, retention cleanup, inode reuse, concurrent truncation or rotation, partial batch boundaries, timestamp ties, timezone parsing, and source/database reconciliation. The event ID used for deduplication is derived from file location and line content rather than a signed evidence chain, so it should be treated as an application-level identifier.
+The SIEM stores parsed events and derived session information. A reliable evaluation should compare the preserved source file with database rows and document the mapping between each source record and each stored record. Existing ingestion tests verify important behaviors, including that repeated polling does not duplicate rows and that an incomplete trailing record is not checkpointed prematurely. Further testing is required for database alteration, retention cleanup, inode reuse, concurrent truncation or rotation, partial batch boundaries, timestamp ties, and timezone parsing. The new source/database reconciliation tests cover selected synthetic cases only. The event ID used for deduplication is derived from file location and line content rather than a signed evidence chain, so it should be treated as an application-level identifier.
 
 ### 6.4 Implications for forensic practice
 
@@ -169,7 +169,7 @@ This paper does not give a legal opinion or assert admissibility in any jurisdic
 
 ## 7. Limitations
 
-The evaluation is limited in several respects. First, the available trace is small (55 records), local, and loopback-only; it is not a representative external-attack dataset. Second, the offline fault simulations are controlled examples, not a statistically designed benchmark. Third, the successful CI run validates only the configured environment and tests. Fourth, the study does not yet perform a complete source-to-database reconciliation under a comprehensive fault matrix, test a privileged adversary who can modify both evidence and baseline, or validate deployment clock synchronization. Fifth, the legal discussion is a high-level comparison and not jurisdiction-specific legal advice. Finally, results from one repository branch and one trace cannot establish that every deployment or version of HyShield behaves identically.
+The evaluation is limited in several respects. First, the available trace is small (55 records), local, and loopback-only; it is not a representative external-attack dataset. Second, the offline fault simulations are controlled examples, not a statistically designed benchmark. Third, the successful CI run validates only the configured environment and synthetic tests. Fourth, source-to-database reconciliation covers selected synthetic cases rather than a comprehensive fault matrix; database tampering by a privileged adversary, production clock synchronization, and full live Docker/Cowrie/SIEM operation were not evaluated. Fifth, the legal discussion is a high-level comparison and not jurisdiction-specific legal advice. Finally, results from one repository branch and one trace cannot establish that every deployment or version of HyShield behaves identically.
 
 ## 8. Future work
 
@@ -209,6 +209,6 @@ The work uses an existing honeypot trace and controlled offline copies. No publi
 - Select the target journal/conference and reformat to its template and citation style.
 - Re-verify every reference and current legal authority before submission.
 - Redact credential material from any dataset, screenshot, or appendix.
-- Re-run and archive the offline scripts and source-to-database experiments; the manually reported copy simulations are not automatically reproduced by the CI workflow.
+- The repository audit utility and selected source-to-SQLite tests have been run; re-run and archive the manually reported copy-level fault simulations because those simulations are not automatically reproduced by CI.
 - Add quantitative fault-injection metrics only after executing a defined test matrix and retaining its raw outputs.
 - Have a supervisor/co-author review the interpretation and legal section.
