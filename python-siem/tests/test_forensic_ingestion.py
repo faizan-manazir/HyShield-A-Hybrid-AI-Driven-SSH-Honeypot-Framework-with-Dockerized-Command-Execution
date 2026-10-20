@@ -128,3 +128,44 @@ def test_truncated_file_is_re_read_from_offset_zero(isolated_ingestor):
         }
     # Truncation causes re-reading; it does not automatically erase prior stored evidence.
     assert sessions == {"session-original", "session-new"}
+
+
+
+def test_oversized_line_is_flagged_and_next_valid_event_is_ingested(isolated_ingestor):
+    from app.ingest import MAX_LINE_BYTES
+
+    ingestor, path = isolated_ingestor
+    oversized_line = b"x" * (MAX_LINE_BYTES + 1)
+    valid = _event("cowrie.session.connect", "session-after-oversized", "2026-10-20T10:05:00Z")
+    path.write_bytes(oversized_line + b"\n" + (json.dumps(valid) + "\n").encode("utf-8"))
+
+    # The oversized row is not treated as a source event; it is recorded as an ingest error.
+    assert ingestor.poll() == 1
+    assert _raw_event_count() == 2
+    assert ingestor.stats["errors"] == 1
+    with db.connect() as conn:
+        oversized = conn.execute(
+            "SELECT eventid, payload FROM raw_events WHERE eventid='error.oversized'"
+        ).fetchone()
+        valid_row = conn.execute(
+            "SELECT eventid FROM raw_events WHERE eventid='cowrie.session.connect'"
+        ).fetchone()
+    assert oversized is not None
+    assert json.loads(oversized["payload"])["error"] == "Oversized log line discarded"
+    assert valid_row is not None
+
+
+def test_valid_json_non_object_is_recorded_as_malformed(isolated_ingestor):
+    ingestor, path = isolated_ingestor
+    valid = _event("cowrie.session.connect", "session-after-array", "2026-10-20T10:06:00Z")
+    path.write_text("[]\n" + json.dumps(valid) + "\n", encoding="utf-8")
+
+    assert ingestor.poll() == 1
+    assert _raw_event_count() == 2
+    assert ingestor.stats["errors"] == 1
+    with db.connect() as conn:
+        malformed = conn.execute(
+            "SELECT eventid, payload FROM raw_events WHERE eventid='error.malformed'"
+        ).fetchone()
+    assert malformed is not None
+    assert json.loads(malformed["payload"])["raw_line"] == "[]"
