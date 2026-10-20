@@ -11,7 +11,7 @@ import argparse
 import hashlib
 import json
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,10 @@ def parse_timestamp(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
-    return parsed
+    # Naive timestamps cannot be reliably compared with offset-aware values.
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
 def audit_file(path: Path, baseline_sha256: str | None = None) -> dict[str, Any]:
@@ -64,12 +67,9 @@ def audit_file(path: Path, baseline_sha256: str | None = None) -> dict[str, Any]
                 invalid_timestamp += 1
             else:
                 if previous_time is not None:
-                    # Compare only when both adjacent valid timestamps are timezone-compatible.
-                    try:
-                        if parsed_time < previous_time:
-                            timestamp_decreases += 1
-                    except TypeError:
-                        pass
+                    # parse_timestamp normalizes valid values to timezone-aware UTC.
+                    if parsed_time < previous_time:
+                        timestamp_decreases += 1
                 previous_time = parsed_time
                 if first_timestamp is None:
                     first_timestamp = str(raw_timestamp)
