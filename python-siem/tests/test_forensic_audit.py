@@ -34,6 +34,7 @@ def test_audit_reports_malformed_and_missing_fields_without_payload(tmp_path):
     path = tmp_path / "cowrie.json"
     path.write_text(
         '{"eventid":"cowrie.session.connect","session":"s2","timestamp":"bad"}\n'
+        '{"eventid":"cowrie.command.input","session":"s2","timestamp":"2026-10-20T10:00:00","input":"private"}\n'
         '{"password":"do-not-print"}\n'
         'not-json\n',
         encoding="utf-8",
@@ -41,13 +42,15 @@ def test_audit_reports_malformed_and_missing_fields_without_payload(tmp_path):
 
     report = audit_file(path)
 
-    assert report["json_records"] == 2
+    assert report["json_records"] == 3
     assert report["malformed_or_non_object_lines"] == 1
-    assert report["invalid_timestamp"] == 1
+    # Invalid syntax and a timestamp without an explicit timezone are both invalid.
+    assert report["invalid_timestamp"] == 2
     assert report["missing_eventid"] == 1
     assert report["missing_timestamp"] == 1
     assert "do-not-print" not in json.dumps(report)
     assert "password" not in json.dumps(report)
+    assert "private" not in json.dumps(report)
 
 
 def test_changed_file_does_not_match_trusted_baseline(tmp_path):
