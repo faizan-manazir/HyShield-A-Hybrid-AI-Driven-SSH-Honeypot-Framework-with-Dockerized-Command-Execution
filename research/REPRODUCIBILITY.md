@@ -29,6 +29,19 @@
 - SHA-256 as recorded during offline analysis: 43F659EB94216AC20BFB8A17EB7043341295AC8ADD435DCDB25E1C8A4DF13DA4
 - Sensitive values: submitted credentials exist in the raw source; do not publish the raw file without redaction and review.
 
+## Independently repeated local trace profile (21 October 2026)
+- Input file: `/mnt/data/cowrie(1).json`, read-only profile; file size 29,336 bytes.
+- SHA-256 recomputed: `43F659EB94216AC20BFB8A17EB7043341295AC8ADD435DCDB25E1C8A4DF13DA4` (matches the previously recorded fingerprint).
+- 55 JSON object records; 0 malformed/non-object lines; 0 missing event IDs; 0 missing timestamps; 0 invalid timestamps; 0 backward timestamp steps in file order.
+- 6 sessions; 11 `cowrie.command.input` events. Observed source IP values are exclusively `127.0.0.1`; this trace is a local/test trace, not evidence of external attacks.
+- First/last valid timestamps in file order: `2026-05-18T21:58:44.672161Z` and `2026-05-18T22:13:26.630935Z`.
+- A redacted JSON profile report was generated locally as `hyshield_actual_cowrie_audit_report.json`. The raw trace is not committed to the repository because it contains credentials.
+- Note: this local profile was independently recomputed with equivalent audit logic; the repository script was not directly executed against the mounted input in this environment. Run `python-siem/scripts/forensic_audit.py` on the user's preserved local file as the final reproducibility check.
+
+## Source-to-database reconciliation tests added
+- `python-siem/tests/test_forensic_pipeline_reconciliation.py` covers source-row to SQLite-row count/payload agreement for a synthetic session, retention of missing/invalid timestamp values, repeated identical JSON content at distinct offsets, and the limitation that pre-ingestion omission cannot be inferred without an independent manifest.
+- These are automated tests of the actual `Ingestor` and isolated SQLite database, but use synthetic records; they are not an end-to-end test against a running Docker honeypot or the real user's trace.
+
 ## Reported offline controlled simulations
 These outcomes were recorded from the user's offline console output; they were not automatically rerun by the GitHub workflow:
 - Preserved source and unmodified working copy hashes matched.
