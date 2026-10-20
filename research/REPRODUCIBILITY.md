@@ -9,8 +9,8 @@
 - Repository: faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution
 - Branch: audit/forensic-ingestion-tests
 - Corrected fixture commit: b0e32d3b7e2a0d2ba23ff6bac08f05ee51ab0bdf
-- Latest CI run for the current manuscript commit: https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39482655272
-- CI outcome: test suite, dependency audit, and static security scan all completed successfully for the current manuscript commit.
+- CI run covering the source-to-SQLite reconciliation tests: https://github.com/faizan-manazir/HyShield-A-Hybrid-AI-Driven-SSH-Honeypot-Framework-with-Dockerized-Command-Execution/actions/runs/39483080807
+- CI outcome for that test commit: test suite, dependency audit, and static security scan all completed successfully. Subsequent manuscript and ledger changes are documentation-only.
 
 ## Reproducible audit utility
 - Script: `python-siem/scripts/forensic_audit.py`
