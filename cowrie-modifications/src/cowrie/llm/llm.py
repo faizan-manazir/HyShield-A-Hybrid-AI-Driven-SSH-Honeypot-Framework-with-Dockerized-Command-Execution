@@ -177,13 +177,14 @@ class LLMClient:
         err.trap(Exception)
         return (500, err.getErrorMessage().encode("utf-8"))
 
-    def _send_to_bridge(self, command: str) -> str:
+    def _send_to_bridge(self, command: str, terminal_width: int = 80) -> str:
         """Forward command to bridge using fresh connection each time."""
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(5)
             sock.connect((self.bridge_host, self.bridge_port))
-            sock.sendall((command + "\n").encode("utf-8"))
+            payload = f"__HYSHIELD_WIDTH__={max(20, min(int(terminal_width), 500))}\n{command}\n"
+            sock.sendall(payload.encode("utf-8"))
 
             response = b""
             sock.settimeout(2)
@@ -207,7 +208,7 @@ class LLMClient:
 
     @inlineCallbacks
     def get_response(
-        self, prompt: list[str]
+        self, prompt: list[str], terminal_width: int = 80
     ) -> Generator[Deferred[Any], Any, str]:
         """
         Extract command from prompt and forward to hybrid Docker+AI bridge.
@@ -227,7 +228,9 @@ class LLMClient:
         if not command:
             return ""
 
-        result = yield deferToThread(self._send_to_bridge, command)
+        result = yield deferToThread(
+            self._send_to_bridge, command, terminal_width
+        )
 
         return result
 
