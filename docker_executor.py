@@ -113,7 +113,7 @@ class DockerExecutor:
         marker = "__HYSHIELD_CWD__"
         full_cmd = (
             f"cd '{self.current_directory}' && "
-            f"COLUMNS={self.term_cols} TERM=xterm-256color {command}; "
+            f"COLUMNS={self.term_cols} TERM=xterm-256color {command} 2>&1; "
             f"printf '\\n{marker}%s\\n' \"$PWD\""
         )
         result = subprocess.run(
