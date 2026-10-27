@@ -148,6 +148,17 @@ If the shell output, current directory, or telemetry differs from expectations, 
 - Keep the honeypot isolated from production networks and real credentials.
 
 
+### 8. Preserve command error output
+
+The executor redirects each command's standard error to standard output before printing the internal working-directory marker. This prevents errors such as `bash: ko: command not found` from being placed after the marker by Python's separate stdout/stderr capture and then discarded during marker parsing.
+
+Validation performed through the active SSH honeypot:
+- Unknown commands `koo` and `xyz123` displayed Bash's `command not found` error.
+- `ls --invalid-option` displayed its option error and help hint.
+- `cat /nonexistent-file-123.txt` displayed the expected missing-file error.
+
+The relevant executor command string uses `{command} 2>&1;` before the working-directory marker. Re-run these tests after pulling the PR branch to verify behavior in the exact checkout.
+
 ### 7. Responsive SSH terminal width and `ls` formatting
 
 The interactive Cowrie protocol reads the negotiated PTY size from `self.user.windowSize`, whose shape is `(height, width)`. It passes the width to `LLMClient.get_response(..., terminal_width=width)`. The LLM bridge client sends a small metadata header before the command:
