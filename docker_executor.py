@@ -81,7 +81,7 @@ class DockerExecutor:
         self.current_directory = "/root"
         self.history = []
         # Get terminal width dynamically
-        self.term_cols = 220
+        self.term_cols = 80
 
     def execute(self, command):
         command = command.strip()
@@ -148,14 +148,14 @@ class DockerExecutor:
             path = args
             if not path.startswith("/"):
                 path = f"{self.current_directory.rstrip('/')}/{path}"
-            ls_cmd = f"ls --color=never '{path}'"
+            ls_cmd = f"ls -C --color=never --width={min(self.term_cols, 120)} '{path}'"
         else:
-            ls_cmd = f"ls --color=never {args}"
+            ls_cmd = f"ls -C --color=never --width={min(self.term_cols, 120)} {args}"
 
         # Run with full terminal width so Docker formats columns correctly
         full_cmd = (
             f"cd {self.current_directory} && "
-            f"COLUMNS={self.term_cols} TERM=xterm-256color {ls_cmd}"
+            f"COLUMNS={min(self.term_cols, 120)} TERM=xterm-256color {ls_cmd}"
         )
 
         result = subprocess.run(
