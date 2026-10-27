@@ -55,7 +55,7 @@ def run_docker(cmd, cwd="/root", cols=220):
     """Run a command in the Docker container."""
     full_cmd = f"cd {cwd} && COLUMNS={cols} TERM=xterm-256color {cmd}"
     result = subprocess.run(
-        [DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
+        ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
         capture_output=True,
         text=True,
         timeout=10
@@ -81,17 +81,26 @@ class DockerExecutor:
         self.current_directory = "/root"
         self.history = []
         # Get terminal width dynamically
-        self.term_cols = 220
+        self.term_cols = 80
 
     def execute(self, command):
         command = command.strip()
+        if not command:
+            return ""
 
         for blocked in BLOCKED_COMMANDS:
             if blocked in command:
-                return "Operation not permitted\n"
+                return "Operation not permitted\\n"
 
-        if command.startswith("cd"):
-            return self._handle_cd(command)
+        # Intercept only simple cd commands. Compound commands must run in bash
+        # so sequences such as "cd / && pwd && cd bin && pwd" work naturally.
+        has_shell_operators = any(token in command for token in (
+            "&&", "||", ";", "|", "$(", "`"
+        ))
+        if command == "cd" or (command.startswith("cd ") and not has_shell_operators):
+            output = self._handle_cd(command)
+            self.history.append(command)
+            return output
 
         if command == "history":
             return self._handle_history()
@@ -99,10 +108,32 @@ class DockerExecutor:
         if command == "ls" or command.startswith("ls "):
             return self._handle_ls(command)
 
-        # All other commands run natively in Docker
-        output = run_docker(command, self.current_directory, self.term_cols)
+        # Run the requested command once and capture its final working directory
+        # from the same shell process.
+        marker = "__HYSHIELD_CWD__"
+        full_cmd = (
+            f"cd '{self.current_directory}' && "
+            f"COLUMNS={self.term_cols} TERM=xterm-256color {command} 2>&1; "
+            f"printf '\\n{marker}%s\\n' \"$PWD\""
+        )
+        result = subprocess.run(
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
         self.history.append(command)
-        return output
+        combined = result.stdout + result.stderr
+
+        # Remove the internal marker from the output shown to the SSH client.
+        if marker in combined:
+            before, after = combined.rsplit(marker, 1)
+            self.current_directory = after.strip().splitlines()[0] if after.strip() else self.current_directory
+            combined = before.rstrip("\\n")
+            if combined:
+                combined += "\\n"
+
+        return combined
 
     def _handle_ls(self, command):
         """
@@ -117,18 +148,18 @@ class DockerExecutor:
             path = args
             if not path.startswith("/"):
                 path = f"{self.current_directory.rstrip('/')}/{path}"
-            ls_cmd = f"ls --color=never '{path}'"
+            ls_cmd = f"ls -C --color=never --width={min(self.term_cols, 120)} '{path}'"
         else:
-            ls_cmd = f"ls --color=never {args}"
+            ls_cmd = f"ls -C --color=never --width={min(self.term_cols, 120)} {args}"
 
         # Run with full terminal width so Docker formats columns correctly
         full_cmd = (
             f"cd {self.current_directory} && "
-            f"COLUMNS={self.term_cols} TERM=xterm-256color {ls_cmd}"
+            f"COLUMNS={min(self.term_cols, 120)} TERM=xterm-256color {ls_cmd}"
         )
 
         result = subprocess.run(
-            [DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
             capture_output=True,
             text=True,
             timeout=10
@@ -165,7 +196,7 @@ class DockerExecutor:
         target = target.replace("//", "/")
 
         result = subprocess.run(
-            [DOCKER_BIN, "exec", "-i", CONTAINER,
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER,
              "bash", "-c", f"cd '{target}' && pwd"],
             capture_output=True,
             text=True,

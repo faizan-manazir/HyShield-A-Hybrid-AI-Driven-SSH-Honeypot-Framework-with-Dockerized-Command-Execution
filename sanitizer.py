@@ -27,10 +27,6 @@ def sanitize_output(output):
     if "PID" in output and "%CPU" in output:
         return FAKE_PROCESSES + "\n"
 
-    # Format ls output to single horizontal line
-    if output and "\n" in output:
-        lines = [l.strip() for l in output.strip().split("\n") if l.strip()]
-        if all(" " not in l or l.count(" ") < 3 for l in lines):
-            return "  ".join(lines) + "\n"
+    # Preserve native multiline and column-formatted command output.
 
     return output
