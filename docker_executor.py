@@ -108,26 +108,32 @@ class DockerExecutor:
         if command == "ls" or command.startswith("ls "):
             return self._handle_ls(command)
 
-        # Execute the command inside the isolated container, not on the host.
-        output = run_docker(command, self.current_directory, self.term_cols)
-        self.history.append(command)
-
-        # Track directory changes made by compound commands, e.g. "cd /tmp".
-        # This probe is separate from the requested command and does not repeat
-        # the requested command itself.
+        # Run the requested command once and capture its final working directory
+        # from the same shell process.
         marker = "__HYSHIELD_CWD__"
-        probe = subprocess.run(
-            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c",
-             f"printf '\\n{marker}%s\\n' \"$PWD\""],
+        full_cmd = (
+            f"cd '{self.current_directory}' && "
+            f"COLUMNS={self.term_cols} TERM=xterm-256color {command}; "
+            f"printf '\\n{marker}%s\\n' \"$PWD\""
+        )
+        result = subprocess.run(
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=10
         )
-        probe_output = probe.stdout
-        if probe.returncode == 0 and marker in probe_output:
-            self.current_directory = probe_output.rsplit(marker, 1)[1].strip()
+        self.history.append(command)
+        combined = result.stdout + result.stderr
 
-        return output
+        # Remove the internal marker from the output shown to the SSH client.
+        if marker in combined:
+            before, after = combined.rsplit(marker, 1)
+            self.current_directory = after.strip().splitlines()[0] if after.strip() else self.current_directory
+            combined = before.rstrip("\\n")
+            if combined:
+                combined += "\\n"
+
+        return combined
 
     def _handle_ls(self, command):
         """
