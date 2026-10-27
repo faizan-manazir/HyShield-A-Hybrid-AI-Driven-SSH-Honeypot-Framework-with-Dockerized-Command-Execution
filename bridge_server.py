@@ -31,9 +31,21 @@ def handle_client(conn, addr):
         conn.settimeout(5)
         data = conn.recv(4096)
         if data:
-            command = data.decode("utf-8", errors="replace").strip()
+            message = data.decode("utf-8", errors="replace").strip()
+            terminal_width = 80
+            if message.startswith("__HYSHIELD_WIDTH__="):
+                metadata, _, command = message.partition("\n")
+                try:
+                    terminal_width = max(20, min(int(metadata.split("=", 1)[1]), 500))
+                except ValueError:
+                    terminal_width = 80
+                executor.term_cols = terminal_width
+                command = command.strip()
+            else:
+                command = message
+
             if command:
-                print(f"[*] [{addr}] CMD: {command}")
+                print(f"[*] [{addr}] WIDTH: {terminal_width} CMD: {command}")
 
                 raw_output = executor.execute(command)
                 clean_output = sanitize_output(raw_output)
