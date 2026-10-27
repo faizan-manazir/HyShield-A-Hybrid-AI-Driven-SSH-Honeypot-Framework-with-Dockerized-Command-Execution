@@ -55,7 +55,7 @@ def run_docker(cmd, cwd="/root", cols=220):
     """Run a command in the Docker container."""
     full_cmd = f"cd {cwd} && COLUMNS={cols} TERM=xterm-256color {cmd}"
     result = subprocess.run(
-        [DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
+        ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
         capture_output=True,
         text=True,
         timeout=10
@@ -85,13 +85,22 @@ class DockerExecutor:
 
     def execute(self, command):
         command = command.strip()
+        if not command:
+            return ""
 
         for blocked in BLOCKED_COMMANDS:
             if blocked in command:
-                return "Operation not permitted\n"
+                return "Operation not permitted\\n"
 
-        if command.startswith("cd"):
-            return self._handle_cd(command)
+        # Intercept only simple cd commands. Compound commands must run in bash
+        # so sequences such as "cd / && pwd && cd bin && pwd" work naturally.
+        has_shell_operators = any(token in command for token in (
+            "&&", "||", ";", "|", "$(", "`"
+        ))
+        if command == "cd" or (command.startswith("cd ") and not has_shell_operators):
+            output = self._handle_cd(command)
+            self.history.append(command)
+            return output
 
         if command == "history":
             return self._handle_history()
@@ -99,9 +108,25 @@ class DockerExecutor:
         if command == "ls" or command.startswith("ls "):
             return self._handle_ls(command)
 
-        # All other commands run natively in Docker
+        # Execute the command inside the isolated container, not on the host.
         output = run_docker(command, self.current_directory, self.term_cols)
         self.history.append(command)
+
+        # Track directory changes made by compound commands, e.g. "cd /tmp".
+        # This probe is separate from the requested command and does not repeat
+        # the requested command itself.
+        marker = "__HYSHIELD_CWD__"
+        probe = subprocess.run(
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c",
+             f"printf '\\n{marker}%s\\n' \"$PWD\""],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        probe_output = probe.stdout
+        if probe.returncode == 0 and marker in probe_output:
+            self.current_directory = probe_output.rsplit(marker, 1)[1].strip()
+
         return output
 
     def _handle_ls(self, command):
@@ -128,7 +153,7 @@ class DockerExecutor:
         )
 
         result = subprocess.run(
-            [DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER, "bash", "-c", full_cmd],
             capture_output=True,
             text=True,
             timeout=10
@@ -165,7 +190,7 @@ class DockerExecutor:
         target = target.replace("//", "/")
 
         result = subprocess.run(
-            [DOCKER_BIN, "exec", "-i", CONTAINER,
+            ["sudo", "-n", DOCKER_BIN, "exec", "-i", CONTAINER,
              "bash", "-c", f"cd '{target}' && pwd"],
             capture_output=True,
             text=True,
