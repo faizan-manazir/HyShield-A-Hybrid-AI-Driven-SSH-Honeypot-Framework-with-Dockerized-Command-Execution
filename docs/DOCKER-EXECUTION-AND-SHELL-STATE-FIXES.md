@@ -146,3 +146,37 @@ If the shell output, current directory, or telemetry differs from expectations, 
 - Review output sanitization and optional AI refinement separately; AI-generated shell output must not be treated as authoritative system output.
 - Test command execution, failure paths, timeouts, and concurrent sessions before any broader deployment.
 - Keep the honeypot isolated from production networks and real credentials.
+
+
+### 7. Responsive SSH terminal width and `ls` formatting
+
+The interactive Cowrie protocol reads the negotiated PTY size from `self.user.windowSize`, whose shape is `(height, width)`. It passes the width to `LLMClient.get_response(..., terminal_width=width)`. The LLM bridge client sends a small metadata header before the command:
+
+```text
+__HYSHIELD_WIDTH__=134
+ls
+```
+
+`bridge_server.py` parses this header, clamps the width to 20–500 columns, and sets `executor.term_cols` for the command. The executor defaults to 80 columns when no width is available and formats `ls` using the smaller of the reported width and 120 columns to avoid excessively wide output. The terminal width is not hardcoded to a single client size.
+
+**Cowrie checkout integration:** In the active Cowrie checkout, update the interactive shell call in `src/cowrie/llm/protocol.py` (inside `_process_command_with_llm`) to pass the PTY width:
+
+```python
+width = getattr(self.user, "windowSize", (24, 80))[1]
+d: defer.Deferred[str] = self.llm_client.get_response(
+    prompt, terminal_width=width
+)
+```
+
+This protocol file is not currently tracked in this repository's `cowrie-modifications` snapshot, so apply and validate that change in the active Cowrie checkout as part of deployment.
+
+#### Terminal-width validation record
+
+During the VM test, the bridge logged width 134 for a narrower terminal and 271 for a maximized terminal. The output was then checked in both window sizes; the final screenshots showed aligned columns in narrow and full-screen modes. After the local edits, the user reported the test suite result as **294 passed, 27 warnings, and 5 subtests passed in 10.69 seconds**. This is the reported local result; rerun tests in the exact checkout before release.
+
+Recommended manual check:
+1. Run `ls` over the Cowrie SSH session with a narrow terminal.
+2. Maximize the terminal and run `ls` again.
+3. Resize it again and repeat; verify columns remain readable and adjust.
+4. Check the bridge log for the reported `WIDTH` value for each command.
+5. Run syntax checks and the project test suite after pulling the PR branch.
