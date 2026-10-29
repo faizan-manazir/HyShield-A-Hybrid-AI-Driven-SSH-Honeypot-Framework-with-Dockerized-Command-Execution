@@ -462,3 +462,17 @@ def test_cowrie_log_path_rejects_missing_file_and_non_admin(client, tmp_path):
                             follow_redirects=False)
     assert forbidden.status_code == 403
     client.cookies.set(auth.COOKIE_NAME, app.state.test_admin_cookie)
+
+def test_parse_time_normalizes_naive_and_aware_timestamps():
+    from datetime import timezone
+    from app.correlation import _parse_time
+
+    naive = _parse_time("2026-10-01T00:00:00")
+    aware = _parse_time("2026-10-02T00:00:00Z")
+
+    assert naive is not None
+    assert aware is not None
+    assert naive.tzinfo is not None
+    assert aware.tzinfo is not None
+    assert naive.utcoffset() == timezone.utc.utcoffset(naive)
+    assert (aware - naive).total_seconds() == 86400
