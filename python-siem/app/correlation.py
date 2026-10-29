@@ -11,7 +11,7 @@ Every session gets 4 scores, each 0-25, added up to a 0-100 Threat Score:
 Risk level:  0-19 LOW | 20-39 MEDIUM | 40-69 HIGH | 70-100 CRITICAL
 """
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ---- Word lists: what counts as "recon", "download", etc. ------------------
 RECON = ["whoami", "id", "uname", "hostname", "netstat", "ps", "df", "uptime",
@@ -78,8 +78,11 @@ def _unique(items):
 
 def _parse_time(text):
     try:
-        return datetime.fromisoformat(str(text).replace("Z", "+00:00"))
-    except ValueError:
+        value = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+    except (ValueError, TypeError):
         return None
 
 
